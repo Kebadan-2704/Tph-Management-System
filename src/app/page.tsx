@@ -14,8 +14,8 @@ const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
 
 // Animation Variants
 const staggerContainer = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
-const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } } }
-const scaleIn = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 24 } } }
+const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } }
+const scaleIn = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } }
 
 export default function Home() {
   const [authRole, setAuthRole] = useState<'admin' | 'volunteer' | null>(null)
@@ -32,7 +32,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   
   const [stats, setStats] = useState({ families: 0, members: 0, txCount: 0 })
-  const [upcomingBirthdays, setUpcomingBirthdays] = useState<(Member & { family: any })[]>([])
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState<(Member & { families?: any })[]>([])
   const [chartData, setChartData] = useState<{name: string, value: number}[]>([])
 
   const [amount, setAmount] = useState(''); const [purpose, setPurpose] = useState('Tithes')
@@ -342,7 +342,7 @@ export default function Home() {
                           <Pie data={chartData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={8} dataKey="value" stroke="none">
                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} style={{ filter: `drop-shadow(0px 10px 10px ${CHART_COLORS[index % CHART_COLORS.length]}40)` }} />)}
                           </Pie>
-                          <RechartsTooltip formatter={(value: number) => `₹${value.toLocaleString()}`} contentStyle={{backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', borderRadius: '16px', border: isDarkMode ? '1px solid #1e293b' : 'none', color: isDarkMode ? '#f8fafc' : '#0f172a', padding: '12px 20px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} itemStyle={{fontWeight: 'bold'}} />
+                          <RechartsTooltip formatter={(value: any) => `₹${Number(value).toLocaleString()}`} contentStyle={{backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', borderRadius: '16px', border: isDarkMode ? '1px solid #1e293b' : 'none', color: isDarkMode ? '#f8fafc' : '#0f172a', padding: '12px 20px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} itemStyle={{fontWeight: 'bold'}} />
                           <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '14px', fontWeight: '500' }} />
                         </PieChart>
                       </ResponsiveContainer>
