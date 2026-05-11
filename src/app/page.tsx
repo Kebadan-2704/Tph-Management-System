@@ -5,6 +5,7 @@ import { supabase } from '@/utils/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, User, MapPin, Phone, Mail, Calendar, Users, FileText, CheckCircle2, Plus, Printer, TrendingUp, MessageCircle, X, Gift, Lock, ShieldCheck, Megaphone, PieChart as PieChartIcon, Moon, Sun, Download, Edit3, UserPlus, LogOut, Trash2, ChevronRight } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'
+import jsPDF from 'jspdf'
 
 type Family = { id: string; membership_id: string; head_name: string; address: string; place: string; mobile: string; email: string; join_date: string }
 type Member = { id: string; family_id: string; name: string; relationship: string; gender: string; birth_date: string; baptism_date: string; marriage_date: string }
@@ -184,7 +185,76 @@ export default function Home() {
   const handleBroadcast = () => { if(!broadcastMsg) return; alert(`Broadcast sent to ${stats.families} families successfully!`); setShowBroadcastModal(false); setBroadcastMsg('') }
   const handleDeleteReceipt = async (txId: string) => { if (!confirm("Delete this receipt permanently?")) return; try { await supabase.from('transactions').delete().eq('id', txId); setTransactions(transactions.filter(t => t.id !== txId)); setStats(prev => ({ ...prev, txCount: Math.max(0, prev.txCount - 1) })) } catch(err) { alert("Failed to delete.") } }
   const printReceipt = (tx: Transaction) => { const printWindow = window.open('', '_blank'); if (!printWindow) return; printWindow.document.write(`<html><head><title>Receipt ${tx.receipt_number}</title><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet"><style>body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; color: #1e293b; background: #f8fafc; margin: 0; display: flex; justify-content: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .receipt-container { width: 100%; max-width: 600px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 32px; padding: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); position: relative; overflow: hidden; } .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 30px; margin-bottom: 30px; } .logo { width: 90px; height: 90px; object-fit: contain; margin-bottom: 16px; } .title { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.5px; } .subtitle { font-size: 15px; color: #64748b; font-weight: 600; margin-top: 6px; } .details { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; } .detail-box { background: #f8fafc; padding: 16px; border-radius: 16px; } .detail-label { font-size: 11px; text-transform: uppercase; font-weight: 800; color: #94a3b8; letter-spacing: 1px; margin-bottom: 6px; } .detail-value { font-size: 16px; font-weight: 700; color: #334155; } .amount-container { text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 32px; border-radius: 24px; margin-bottom: 30px; } .amount-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 700; margin-bottom: 12px; } .amount-value { font-size: 48px; font-weight: 800; margin: 0; color: #fff; letter-spacing: -1px; } .footer { text-align: center; font-size: 14px; color: #94a3b8; font-weight: 600; border-top: 1px solid #e2e8f0; padding-top: 24px; } @media print { body { background: white; padding: 0; } .receipt-container { box-shadow: none; border: none; padding: 20px; max-width: 100%; } }</style></head><body><div class="receipt-container"><div class="header"><img src="${window.location.origin}/loooBlack.png" class="logo" alt="Logo"/><h1 class="title">TRINITY PRAYER HOUSE</h1><p class="subtitle">Madukkarai, Coimbatore</p></div><div class="details"><div class="detail-box"><div class="detail-label">Receipt Number</div><div class="detail-value">${tx.receipt_number}</div></div><div class="detail-box"><div class="detail-label">Payment Date</div><div class="detail-value">${new Date(tx.payment_date).toLocaleDateString('en-IN')}</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Received From</div><div class="detail-value">${family?.head_name} (${family?.membership_id})</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Purpose of Contribution</div><div class="detail-value">${tx.purpose}</div></div></div><div class="amount-container"><div class="amount-label">Amount Received</div><div class="amount-value">₹${tx.amount.toLocaleString('en-IN')}</div></div><div class="footer">Thank you for your generous contribution.<br>May God bless you abundantly!</div></div><script>setTimeout(() => { window.print(); setTimeout(() => window.close(), 500); }, 500);</script></body></html>`); printWindow.document.close() }
-  const sendWhatsApp = (tx: Transaction) => { if (!family?.mobile) return alert("No mobile number registered."); let phone = family.mobile.replace(/\D/g,''); if (phone.length === 10) phone = `91${phone}`; window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}\n\nMay God bless you abundantly!`)}`, '_blank') }
+
+  const generateReceiptPDF = (tx: Transaction): jsPDF => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
+    const w = doc.internal.pageSize.getWidth()
+    // Header background
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, w, 52, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold')
+    doc.text('TRINITY PRAYER HOUSE', w / 2, 22, { align: 'center' })
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal')
+    doc.text('Madukkarai, Coimbatore', w / 2, 30, { align: 'center' })
+    doc.setFontSize(8); doc.setTextColor(148, 163, 184)
+    doc.text('Official Contribution Receipt', w / 2, 38, { align: 'center' })
+    // Dashed line
+    doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(15, 56, w - 15, 56)
+    // Receipt details
+    doc.setLineDashPattern([], 0); doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+    doc.text('RECEIPT NUMBER', 15, 66); doc.text('PAYMENT DATE', w / 2 + 5, 66)
+    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+    doc.text(tx.receipt_number, 15, 73); doc.text(new Date(tx.payment_date).toLocaleDateString('en-IN'), w / 2 + 5, 73)
+    doc.setTextColor(100, 116, 139); doc.setFontSize(8)
+    doc.text('RECEIVED FROM', 15, 84)
+    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+    doc.text(`${family?.head_name || ''} (${family?.membership_id || ''})`, 15, 91)
+    doc.setTextColor(100, 116, 139); doc.setFontSize(8)
+    doc.text('PURPOSE OF CONTRIBUTION', 15, 102)
+    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+    doc.text(tx.purpose, 15, 109)
+    if (tx.remarks) {
+      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.text('REMARKS', 15, 119)
+      doc.setTextColor(30, 41, 59); doc.setFontSize(10); doc.setFont('helvetica', 'normal')
+      doc.text(tx.remarks, 15, 126)
+    }
+    // Amount box
+    const amtY = tx.remarks ? 135 : 120
+    doc.setFillColor(15, 23, 42); doc.roundedRect(15, amtY, w - 30, 32, 4, 4, 'F')
+    doc.setTextColor(148, 163, 184); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+    doc.text('AMOUNT RECEIVED', w / 2, amtY + 10, { align: 'center' })
+    doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.setFont('helvetica', 'bold')
+    doc.text(`Rs. ${tx.amount.toLocaleString('en-IN')}`, w / 2, amtY + 24, { align: 'center' })
+    // Footer
+    doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal')
+    doc.text('Thank you for your generous contribution.', w / 2, amtY + 46, { align: 'center' })
+    doc.text('May God bless you abundantly!', w / 2, amtY + 52, { align: 'center' })
+    return doc
+  }
+
+  const downloadPDF = (tx: Transaction) => {
+    const doc = generateReceiptPDF(tx)
+    doc.save(`Receipt_${tx.receipt_number}.pdf`)
+  }
+
+  const sendWhatsApp = async (tx: Transaction) => {
+    if (!family?.mobile) return alert('No mobile number registered.')
+    let phone = family.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`
+    try {
+      const doc = generateReceiptPDF(tx)
+      const pdfBlob = doc.output('blob')
+      const fileName = `receipts/${tx.receipt_number}.pdf`
+      const { error: uploadErr } = await supabase.storage.from('receipts').upload(fileName, pdfBlob, { contentType: 'application/pdf', upsert: true })
+      if (uploadErr) throw uploadErr
+      const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(fileName)
+      const pdfUrl = urlData?.publicUrl || ''
+      const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\n📄 Download Receipt:\n${pdfUrl}\n\nMay God bless you abundantly!`
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    } catch (err) {
+      console.error('PDF upload failed, sending text only:', err)
+      const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}\n\nMay God bless you abundantly!`
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    }
+  }
 
   // ----------------------------------------------------
   // --- LOGIN SCREEN (SAAS REDESIGN)
@@ -485,7 +555,8 @@ export default function Home() {
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                           <span className="text-xl sm:text-2xl font-extrabold text-emerald-500 mr-2 sm:mr-3">₹{tx.amount.toLocaleString()}</span>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => handleDeleteReceipt(tx.id)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Delete Receipt"><Trash2 className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp"><MessageCircle className="w-5 h-5" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp with PDF"><MessageCircle className="w-5 h-5" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => downloadPDF(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50'}`} title="Download PDF"><Download className="w-5 h-5" /></motion.button>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => printReceipt(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></motion.button>
                         </div>
                       </motion.div>
