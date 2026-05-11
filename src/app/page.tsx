@@ -62,6 +62,9 @@ export default function Home() {
   
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBroadcastModal, setShowBroadcastModal] = useState(false); const [broadcastMsg, setBroadcastMsg] = useState('')
+  const [broadcastList, setBroadcastList] = useState<{head_name: string, mobile: string}[]>([])
+  const [broadcastIndex, setBroadcastIndex] = useState(0)
+  const [isBroadcasting, setIsBroadcasting] = useState(false)
   const [showEditFamModal, setShowEditFamModal] = useState(false)
   const [showAddMemberModal, setShowAddMemberModal] = useState(false)
   const [showEditDependentModal, setShowEditDependentModal] = useState(false)
@@ -228,7 +231,43 @@ export default function Home() {
     } catch(err) { alert("Error updating member.") } finally { setIsWorking(false) }
   }
 
-  const handleBroadcast = () => { if(!broadcastMsg) return; alert(`Broadcast sent to ${stats.families} families successfully!`); setShowBroadcastModal(false); setBroadcastMsg('') }
+  const handleBroadcast = async () => {
+    if(!broadcastMsg) return;
+    setIsWorking(true)
+    try {
+      const { data, error } = await supabase.from('families').select('head_name, mobile').not('mobile', 'is', null)
+      if (error) throw error
+      if (data && data.length > 0) {
+        setBroadcastList(data)
+        setBroadcastIndex(0)
+        setIsBroadcasting(true)
+      } else {
+        alert("No families with mobile numbers found.")
+      }
+    } catch (err) {
+      alert("Error fetching family list.")
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  const sendIndividualBroadcast = (fam: {head_name: string, mobile: string}) => {
+    if (!fam.mobile) return;
+    let phone = fam.mobile.replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`
+    const msg = `*Trinity Prayer House*\n\nDear ${fam.head_name},\n\n${broadcastMsg}\n\n_God Bless You!_`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    
+    if (broadcastIndex < broadcastList.length - 1) {
+      setBroadcastIndex(broadcastIndex + 1)
+    } else {
+      alert("Broadcast session completed!")
+      setIsBroadcasting(false)
+      setShowBroadcastModal(false)
+      setBroadcastMsg('')
+      setBroadcastList([])
+    }
+  }
   const handleDeleteReceipt = async (txId: string) => { if (!confirm("Delete this receipt permanently?")) return; try { await supabase.from('transactions').delete().eq('id', txId); setTransactions(transactions.filter(t => t.id !== txId)); setStats(prev => ({ ...prev, txCount: Math.max(0, prev.txCount - 1) })) } catch(err) { alert("Failed to delete.") } }
   const printReceipt = (tx: Transaction) => { const printWindow = window.open('', '_blank'); if (!printWindow) return; printWindow.document.write(`<html><head><title>Receipt ${tx.receipt_number}</title><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet"><style>body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; color: #1e293b; background: #f8fafc; margin: 0; display: flex; justify-content: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .receipt-container { width: 100%; max-width: 600px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 32px; padding: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); position: relative; overflow: hidden; } .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 30px; margin-bottom: 30px; } .logo { width: 90px; height: 90px; object-fit: contain; margin-bottom: 16px; } .title { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.5px; } .subtitle { font-size: 15px; color: #64748b; font-weight: 600; margin-top: 6px; } .details { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; } .detail-box { background: #f8fafc; padding: 16px; border-radius: 16px; } .detail-label { font-size: 11px; text-transform: uppercase; font-weight: 800; color: #94a3b8; letter-spacing: 1px; margin-bottom: 6px; } .detail-value { font-size: 16px; font-weight: 700; color: #334155; } .amount-container { text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 32px; border-radius: 24px; margin-bottom: 30px; } .amount-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 700; margin-bottom: 12px; } .amount-value { font-size: 48px; font-weight: 800; margin: 0; color: #fff; letter-spacing: -1px; } .footer { text-align: center; font-size: 14px; color: #94a3b8; font-weight: 600; border-top: 1px solid #e2e8f0; padding-top: 24px; } @media print { body { background: white; padding: 0; } .receipt-container { box-shadow: none; border: none; padding: 20px; max-width: 100%; } }</style></head><body><div class="receipt-container"><div class="header"><img src="${window.location.origin}/loooBlack.png" class="logo" alt="Logo"/><h1 class="title">TRINITY PRAYER HOUSE</h1><p class="subtitle">Madukkarai, Coimbatore</p></div><div class="details"><div class="detail-box"><div class="detail-label">Receipt Number</div><div class="detail-value">${tx.receipt_number}</div></div><div class="detail-box"><div class="detail-label">Payment Date</div><div class="detail-value">${new Date(tx.payment_date).toLocaleDateString('en-IN')}</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Received From</div><div class="detail-value">${family?.head_name} (${family?.membership_id})</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Purpose of Contribution</div><div class="detail-value">${tx.purpose}</div></div></div><div class="amount-container"><div class="amount-label">Amount Received</div><div class="amount-value">₹${tx.amount.toLocaleString('en-IN')}</div></div><div class="footer">Thank you for your generous contribution.<br>May God bless you abundantly!</div></div><script>setTimeout(() => { window.print(); setTimeout(() => window.close(), 500); }, 500);</script></body></html>`); printWindow.document.close() }
 
@@ -796,7 +835,56 @@ export default function Home() {
 
           {showBroadcastModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}><button onClick={() => setShowBroadcastModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button><h2 className="text-2xl font-extrabold mb-2 flex items-center gap-3"><div className="p-2 bg-orange-500/10 rounded-xl"><Megaphone className="w-6 h-6 text-orange-500"/></div> Broadcast</h2><p className={`text-sm mb-8 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Send an announcement to all {stats.families} families.</p><div className="space-y-5"><div><textarea className={`w-full border rounded-2xl px-5 py-4 focus:ring-2 focus:ring-orange-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} rows={4} placeholder="Type your announcement here..." value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)}></textarea></div><motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleBroadcast} disabled={!broadcastMsg} className="w-full bg-orange-500 hover:bg-orange-400 text-white font-extrabold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/30 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"><MessageCircle className="w-6 h-6"/> Send via WhatsApp (Mock)</motion.button></div></motion.div>
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}>
+                <button onClick={() => { setShowBroadcastModal(false); setIsBroadcasting(false); }} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+                
+                <h2 className="text-2xl font-extrabold mb-2 flex items-center gap-3">
+                  <div className="p-2 bg-orange-500/10 rounded-xl"><Megaphone className="w-6 h-6 text-orange-500"/></div> 
+                  Broadcast
+                </h2>
+                
+                {!isBroadcasting ? (
+                  <>
+                    <p className={`text-sm mb-8 font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Send an announcement to all {stats.families} families.</p>
+                    <div className="space-y-5">
+                      <div>
+                        <textarea className={`w-full border rounded-2xl px-5 py-4 focus:ring-2 focus:ring-orange-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} rows={4} placeholder="Type your announcement here..." value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)}></textarea>
+                      </div>
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleBroadcast} disabled={!broadcastMsg || isWorking} className="w-full bg-orange-500 hover:bg-orange-400 text-white font-extrabold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-orange-500/30 text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isWorking ? 'Preparing...' : <><MessageCircle className="w-6 h-6"/> Start Broadcast Session</>}
+                      </motion.button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-6 space-y-6">
+                    <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
+                      <span>Progress</span>
+                      <span>{broadcastIndex + 1} / {broadcastList.length}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${((broadcastIndex + 1) / broadcastList.length) * 100}%` }} className="bg-orange-500 h-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></motion.div>
+                    </div>
+                    
+                    <div className={`p-6 rounded-[2rem] border ${isDarkMode ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'} text-center`}>
+                      <p className={`text-[10px] font-extrabold ${textSecondary} mb-2 uppercase tracking-[0.2em]`}>Next Recipient</p>
+                      <p className={`text-2xl font-black ${textPrimary} tracking-tight`}>{broadcastList[broadcastIndex]?.head_name}</p>
+                      <p className={`text-sm font-bold text-orange-500 mt-1`}>{broadcastList[broadcastIndex]?.mobile}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <button onClick={() => {
+                        if (broadcastIndex < broadcastList.length - 1) setBroadcastIndex(broadcastIndex + 1)
+                        else { setIsBroadcasting(false); setShowBroadcastModal(false); }
+                      }} className={`py-4 rounded-2xl font-bold transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Skip</button>
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => sendIndividualBroadcast(broadcastList[broadcastIndex])} className="bg-orange-600 hover:bg-orange-500 text-white font-extrabold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-orange-600/30">Send & Next</motion.button>
+                    </div>
+                    
+                    <p className="text-[10px] text-center font-bold text-slate-500 uppercase tracking-wider">Note: This will open WhatsApp in a new tab</p>
+                  </div>
+                )}
+              </motion.div>
             </div>
           )}
         </AnimatePresence>
