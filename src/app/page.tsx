@@ -239,21 +239,20 @@ export default function Home() {
   const sendWhatsApp = async (tx: Transaction) => {
     if (!family?.mobile) return alert('No mobile number registered.')
     let phone = family.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`
-    try {
-      const doc = generateReceiptPDF(tx)
-      const pdfBlob = doc.output('blob')
-      const fileName = `receipts/${tx.receipt_number}.pdf`
-      const { error: uploadErr } = await supabase.storage.from('receipts').upload(fileName, pdfBlob, { contentType: 'application/pdf', upsert: true })
-      if (uploadErr) throw uploadErr
-      const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(fileName)
-      const pdfUrl = urlData?.publicUrl || ''
-      const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\n📄 Download Receipt:\n${pdfUrl}\n\nMay God bless you abundantly!`
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
-    } catch (err) {
-      console.error('PDF upload failed, sending text only:', err)
-      const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}\n\nMay God bless you abundantly!`
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    const doc = generateReceiptPDF(tx)
+    const pdfBlob = doc.output('blob')
+    const pdfFile = new File([pdfBlob], `Receipt_${tx.receipt_number}.pdf`, { type: 'application/pdf' })
+    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\nMay God bless you abundantly!`
+    // Try Web Share API (works on mobile — shares PDF directly to WhatsApp)
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      try {
+        await navigator.share({ text: msg, files: [pdfFile] })
+        return
+      } catch (e) { /* user cancelled or share failed, fall through */ }
     }
+    // Fallback: download PDF + open WhatsApp with text
+    doc.save(`Receipt_${tx.receipt_number}.pdf`)
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   // ----------------------------------------------------
