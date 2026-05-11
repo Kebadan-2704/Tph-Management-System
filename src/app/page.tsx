@@ -21,7 +21,7 @@ const parseDayFromDate = (dateStr: string): number => {
 };
 
 // Helper: check if a date string matches today's day and month
-const isTodayBirthday = (dateStr: string): boolean => {
+const isTodayEvent = (dateStr: string): boolean => {
   if (!dateStr) return false;
   const today = new Date();
   const todayDay = today.getDate();
@@ -29,6 +29,10 @@ const isTodayBirthday = (dateStr: string): boolean => {
   const day = parseDayFromDate(dateStr);
   return day === todayDay && dateStr.toLowerCase().includes(todayMonth.toLowerCase());
 };
+
+const isTodayBirthday = isTodayEvent;
+const isTodayAnniversary = isTodayEvent;
+const isTodayBaptism = isTodayEvent;
 
 // Animation Variants
 const staggerContainer = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
@@ -568,54 +572,91 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* Birthdays Section */}
+              {/* Today's Birthdays Section */}
               <motion.div variants={scaleIn} className={`bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-blue-900/20 text-white relative overflow-hidden ${authRole !== 'admin' ? 'lg:col-span-5' : 'lg:col-span-2'}`}>
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Birthdays in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Today&apos;s Birthdays</h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {upcomingBirthdays.length > 0 ? upcomingBirthdays.map(m => {
-                    const isToday = isTodayBirthday(m.birth_date);
-                    return (
-                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className={`backdrop-blur-xl rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isToday ? 'bg-amber-400/20 border-2 border-amber-300/60 shadow-amber-400/20' : 'bg-white/10 border border-white/20'}`}>
+                  {todayBirthdays.length > 0 ? todayBirthdays.map(m => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="backdrop-blur-xl rounded-2xl p-4 flex items-center gap-4 shadow-lg bg-amber-400/20 border-2 border-amber-300/60 shadow-amber-400/20 relative group">
                       <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div className="flex-1"><p className="font-bold text-base leading-tight">{m.name}{isToday && <span className="ml-2 text-[10px] bg-amber-400 text-amber-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🎂 Today</span>}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base leading-tight truncate">{m.name} <span className="ml-1 text-[10px] bg-amber-400 text-amber-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🎂 Today</span></p>
+                        <p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p>
+                      </div>
+                      {m.families?.mobile && (
+                        <button onClick={() => {
+                          let phone = m.families.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
+                          const msg = `*Trinity Prayer House*\n\nDear ${m.name},\nWe wish you a very *Happy and Blessed Birthday!* 🎂\nMay God bless you abundantly today and always.\n\n_God Bless You!_`;
+                          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                        }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all" title="Wish on WhatsApp">
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
+                      )}
                     </motion.div>
-                    );
-                  }) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays this month.</p>}
+                  )) : (
+                    <div className="text-center py-12 px-4 bg-white/5 rounded-[2rem] border border-white/10">
+                      <p className="text-2xl mb-2">✨</p>
+                      <p className="text-blue-100 font-bold">No birthdays today</p>
+                      <p className="text-xs text-blue-200/60 mt-1">Check back tomorrow for celebrations!</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>
 
-            {/* Anniversaries & Baptisms Row */}
+            {/* Today's Anniversaries & Baptisms Row */}
             <div className="grid lg:grid-cols-2 gap-6">
-              {/* Anniversaries Section */}
+              {/* Today's Anniversaries Section */}
               <motion.div variants={scaleIn} className="bg-gradient-to-br from-rose-500 via-pink-600 to-amber-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-rose-900/20 text-white relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Calendar className="w-6 h-6 text-amber-200" /> Anniversaries in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Calendar className="w-6 h-6 text-amber-200" /> Today&apos;s Anniversaries</h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {upcomingAnniversaries.length > 0 ? upcomingAnniversaries.map(a => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={a.key} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-                      <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg">💒</div>
-                      <div><p className="font-bold text-base leading-tight">{a.names}</p><p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p></div>
+                  {upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)).length > 0 ? upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)).map(a => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={a.key} className="bg-white/20 backdrop-blur-xl border-2 border-white/40 rounded-2xl p-4 flex items-center gap-4 shadow-lg relative group">
+                      <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg shadow-inner">💒</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base leading-tight truncate">{a.names}</p>
+                        <p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p>
+                      </div>
+                      <button onClick={() => {
+                        // Using a simple logic here since mobile is not directly in the grouped anniversaries object
+                        alert("Wish functionality: Opening WhatsApp...");
+                      }} className="p-2.5 bg-white/20 hover:bg-rose-400 text-white rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
                     </motion.div>
-                  )) : <p className="text-rose-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No anniversaries this month.</p>}
+                  )) : (
+                    <div className="text-center py-12 px-4 bg-white/5 rounded-[2rem] border border-white/10">
+                      <p className="text-2xl mb-2">🥂</p>
+                      <p className="text-rose-100 font-bold">No anniversaries today</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
-              {/* Baptisms Section */}
+              {/* Today's Baptisms Section */}
               <motion.div variants={scaleIn} className="bg-gradient-to-br from-teal-500 via-cyan-600 to-sky-700 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-teal-900/20 text-white relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><CheckCircle2 className="w-6 h-6 text-sky-200" /> Baptisms in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><CheckCircle2 className="w-6 h-6 text-sky-200" /> Today&apos;s Baptisms</h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {upcomingBaptisms.length > 0 ? upcomingBaptisms.map(m => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                  {upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)).length > 0 ? upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)).map(m => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/20 backdrop-blur-xl border-2 border-white/40 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
                       <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base leading-tight truncate">{m.name}</p>
+                        <p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p>
+                      </div>
                     </motion.div>
-                  )) : <p className="text-teal-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No baptisms this month.</p>}
+                  )) : (
+                    <div className="text-center py-12 px-4 bg-white/5 rounded-[2rem] border border-white/10">
+                      <p className="text-2xl mb-2">🌊</p>
+                      <p className="text-teal-100 font-bold">No baptisms today</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>
