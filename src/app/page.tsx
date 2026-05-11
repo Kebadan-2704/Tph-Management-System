@@ -519,6 +519,9 @@ export default function Home() {
         {!family && !loading && (
           <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
             <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6 mb-2 sm:mb-4">
+              <div>
+                <h2 className={`text-2xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>Overview</h2>
+                <p className={`text-sm mt-1 font-medium ${textSecondary}`}>Manage your entire church congregation seamlessly.</p>
               </div>
               
               <div className="flex flex-wrap items-center gap-3">
