@@ -119,7 +119,7 @@ export default function Home() {
 
         // Anniversaries - filter, group, and sort by day ascending
         const annivMembers = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
-        const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string }> = {}
+        const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string; mobile: string }> = {}
         annivMembers.forEach(m => {
           const key = `${m.family_id}_${m.marriage_date}`
           if (!annivGrouped[key]) annivGrouped[key] = { names: [], marriage_date: m.marriage_date, family_name: m.families?.head_name || '', mobile: m.families?.mobile || '' }
