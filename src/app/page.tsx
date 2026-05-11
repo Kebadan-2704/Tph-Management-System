@@ -122,12 +122,12 @@ export default function Home() {
         const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string }> = {}
         annivMembers.forEach(m => {
           const key = `${m.family_id}_${m.marriage_date}`
-          if (!annivGrouped[key]) annivGrouped[key] = { names: [], marriage_date: m.marriage_date, family_name: m.families?.head_name || '' }
+          if (!annivGrouped[key]) annivGrouped[key] = { names: [], marriage_date: m.marriage_date, family_name: m.families?.head_name || '', mobile: m.families?.mobile || '' }
           annivGrouped[key].names.push(m.name)
         })
         setUpcomingAnniversaries(
           Object.entries(annivGrouped)
-            .map(([key, v]) => ({ names: v.names.join(' & '), marriage_date: v.marriage_date, family_name: v.family_name, key }))
+            .map(([key, v]) => ({ names: v.names.join(' & '), marriage_date: v.marriage_date, family_name: v.family_name, mobile: (v as any).mobile, key }))
             .sort((a, b) => parseDayFromDate(a.marriage_date) - parseDayFromDate(b.marriage_date))
         )
 
@@ -519,29 +519,29 @@ export default function Home() {
         {!family && !loading && (
           <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
             <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6 mb-2 sm:mb-4">
-              <div>
-                <h2 className={`text-2xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>Overview</h2>
-                <p className={`text-sm mt-1 font-medium ${textSecondary}`}>Manage your entire church congregation seamlessly.</p>
               </div>
-              {authRole === 'admin' && (
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* View Toggle */}
-                  <div className={`flex items-center p-1 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-slate-200/50 border-slate-200'}`}>
-                    <button onClick={() => setShowTodayOnly(true)} className={`px-5 py-2.5 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all ${showTodayOnly ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')}`}>Today</button>
-                    <button onClick={() => setShowTodayOnly(false)} className={`px-5 py-2.5 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all ${!showTodayOnly ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')}`}>Month</button>
-                  </div>
-
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportBackup} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
-                    <Download className="w-4 h-4" /> Backup
-                  </motion.button>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setShowBroadcastModal(true)} className={`${isDarkMode ? 'bg-slate-800 text-orange-400 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
-                    <Megaphone className="w-4 h-4 text-orange-500" /> Broadcast
-                  </motion.button>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setShowAddModal(true)} className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-3 px-6 rounded-2xl shadow-xl shadow-slate-900/20 dark:shadow-white/20 transition-all flex items-center gap-2 text-sm">
-                    <Plus className="w-4 h-4" /> Add Family
-                  </motion.button>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* View Toggle - Now available to everyone */}
+                <div className={`flex items-center p-1 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-slate-200/50 border-slate-200'}`}>
+                  <button onClick={() => setShowTodayOnly(true)} className={`px-5 py-2.5 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all ${showTodayOnly ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')}`}>Today</button>
+                  <button onClick={() => setShowTodayOnly(false)} className={`px-5 py-2.5 rounded-xl text-xs font-extrabold tracking-wider uppercase transition-all ${!showTodayOnly ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')}`}>Month</button>
                 </div>
-              )}
+
+                {authRole === 'admin' && (
+                  <>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportBackup} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
+                      <Download className="w-4 h-4" /> Backup
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setShowBroadcastModal(true)} className={`${isDarkMode ? 'bg-slate-800 text-orange-400 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
+                      <Megaphone className="w-4 h-4 text-orange-500" /> Broadcast
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setShowAddModal(true)} className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-3 px-6 rounded-2xl shadow-xl shadow-slate-900/20 dark:shadow-white/20 transition-all flex items-center gap-2 text-sm">
+                      <Plus className="w-4 h-4" /> Add Family
+                    </motion.button>
+                  </>
+                )}
+              </div>
             </motion.div>
 
             {/* Stat Cards */}
@@ -585,7 +585,7 @@ export default function Home() {
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10">
                   <Gift className="w-6 h-6 text-pink-300" /> 
-                  {showTodayOnly ? "Today's Birthdays" : `Birthdays in ${new Date().toLocaleString('default', { month: 'long' })}`}
+                  {showTodayOnly ? "Today's Birthdays" : `Birthdays this Month`}
                 </h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
                   {(showTodayOnly ? todayBirthdays : upcomingBirthdays).length > 0 ? (showTodayOnly ? todayBirthdays : upcomingBirthdays).map(m => {
@@ -626,18 +626,30 @@ export default function Home() {
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10">
                   <Calendar className="w-6 h-6 text-amber-200" /> 
-                  {showTodayOnly ? "Today's Anniversaries" : `Anniversaries in ${new Date().toLocaleString('default', { month: 'long' })}`}
+                  {showTodayOnly ? "Today's Anniversaries" : `Anniversaries this Month`}
                 </h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {(showTodayOnly ? upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)) : upcomingAnniversaries).length > 0 ? (showTodayOnly ? upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)) : upcomingAnniversaries).map(a => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={a.key} className={`backdrop-blur-xl border-2 rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isTodayAnniversary(a.marriage_date) ? 'bg-white/20 border-white/40' : 'bg-white/10 border-white/20'}`}>
-                      <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg shadow-inner">💒</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-base leading-tight truncate">{a.names}</p>
-                        <p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p>
-                      </div>
-                    </motion.div>
-                  )) : (
+                  {(showTodayOnly ? upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)) : upcomingAnniversaries).length > 0 ? (showTodayOnly ? upcomingAnniversaries.filter(a => isTodayAnniversary(a.marriage_date)) : upcomingAnniversaries).map(a => {
+                    const isToday = isTodayAnniversary(a.marriage_date);
+                    return (
+                      <motion.div whileHover={{ scale: 1.02 }} key={a.key} className={`backdrop-blur-xl border-2 rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isToday ? 'bg-white/20 border-white/40 shadow-rose-400/20' : 'bg-white/10 border-white/20'}`}>
+                        <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg shadow-inner">💒</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-base leading-tight truncate">{a.names} {isToday && <span className="ml-1 text-[10px] bg-rose-400 text-rose-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">💍 Today</span>}</p>
+                          <p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p>
+                        </div>
+                        {isToday && (a as any).mobile && (
+                          <button onClick={() => {
+                            let phone = (a as any).mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
+                            const msg = `*Trinity Prayer House*\n\nDear ${a.names},\nWe wish you a very *Happy and Blessed Wedding Anniversary!* 💒\nMay God bless your family and lead you in His grace.\n\n_God Bless You!_`;
+                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                          }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all">
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </motion.div>
+                    );
+                  }) : (
                     <div className="text-center py-12 px-4 bg-white/5 rounded-[2rem] border border-white/10">
                       <p className="text-2xl mb-2">{showTodayOnly ? '🥂' : '📅'}</p>
                       <p className="text-rose-100 font-bold">{showTodayOnly ? 'No anniversaries today' : 'No anniversaries this month'}</p>
@@ -652,18 +664,30 @@ export default function Home() {
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10">
                   <CheckCircle2 className="w-6 h-6 text-sky-200" /> 
-                  {showTodayOnly ? "Today's Baptisms" : `Baptisms in ${new Date().toLocaleString('default', { month: 'long' })}`}
+                  {showTodayOnly ? "Today's Baptisms" : `Baptisms this Month`}
                 </h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {(showTodayOnly ? upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)) : upcomingBaptisms).length > 0 ? (showTodayOnly ? upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)) : upcomingBaptisms).map(m => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className={`backdrop-blur-xl border-2 rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isTodayBaptism(m.baptism_date) ? 'bg-white/20 border-white/40' : 'bg-white/10 border-white/20'}`}>
-                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-base leading-tight truncate">{m.name}</p>
-                        <p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p>
-                      </div>
-                    </motion.div>
-                  )) : (
+                  {(showTodayOnly ? upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)) : upcomingBaptisms).length > 0 ? (showTodayOnly ? upcomingBaptisms.filter(m => isTodayBaptism(m.baptism_date)) : upcomingBaptisms).map(m => {
+                    const isToday = isTodayBaptism(m.baptism_date);
+                    return (
+                      <motion.div whileHover={{ scale: 1.02 }} key={m.id} className={`backdrop-blur-xl border-2 rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isToday ? 'bg-white/20 border-white/40 shadow-cyan-400/20' : 'bg-white/10 border-white/20'}`}>
+                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-base leading-tight truncate">{m.name} {isToday && <span className="ml-1 text-[10px] bg-cyan-400 text-cyan-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🌊 Today</span>}</p>
+                          <p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p>
+                        </div>
+                        {isToday && m.families?.mobile && (
+                          <button onClick={() => {
+                            let phone = m.families.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
+                            const msg = `*Trinity Prayer House*\n\nDear ${m.name},\nWe wish you a very *Blessed Baptism Anniversary!* 🌊\nMay you continue to grow in the grace and knowledge of our Lord.\n\n_God Bless You!_`;
+                            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                          }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all">
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </motion.div>
+                    );
+                  }) : (
                     <div className="text-center py-12 px-4 bg-white/5 rounded-[2rem] border border-white/10">
                       <p className="text-2xl mb-2">{showTodayOnly ? '🌊' : '📅'}</p>
                       <p className="text-teal-100 font-bold">{showTodayOnly ? 'No baptisms today' : 'No baptisms this month'}</p>
