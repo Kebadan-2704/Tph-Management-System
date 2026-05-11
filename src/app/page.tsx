@@ -68,7 +68,7 @@ export default function Home() {
       const currentMonth = new Date().toLocaleString('default', { month: 'short' })
       if (allMembers) {
         const bdays = allMembers.filter(m => m.birth_date && m.birth_date.includes(currentMonth))
-        setUpcomingBirthdays(bdays.slice(0, 5))
+        setUpcomingBirthdays(bdays)
       }
     }
     loadDashboard()
@@ -358,10 +358,10 @@ export default function Home() {
                 
                 <h3 className="text-xl font-bold mb-8 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Birthdays in {new Date().toLocaleString('default', { month: 'long' })}</h3>
                 
-                <div className="space-y-4 relative z-10">
+                <div className="space-y-4 relative z-10 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
                   {upcomingBirthdays.length > 0 ? upcomingBirthdays.map(m => (
                     <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30" alt="avatar" />
+                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
                       <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}'s Family</p></div>
                     </motion.div>
                   )) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays recorded for this month.</p>}
