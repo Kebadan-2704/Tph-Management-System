@@ -192,8 +192,8 @@ export default function Home() {
               <div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full"></div>
               <img src="/looowhite.png" alt="Trinity Logo" className="w-full h-full object-contain relative z-10" />
             </div>
-            <img src="/golden_text.png" alt="Trinity Prayer House" className="h-14 object-contain mb-2 filter drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]" />
-            <p className="text-slate-400 text-center text-sm font-medium mt-2 tracking-wide uppercase">Secure Administrative Access</p>
+            <h1 className="text-3xl font-extrabold text-white text-center tracking-tight mb-2">Trinity Portal</h1>
+            <p className="text-slate-400 text-center text-sm font-medium tracking-wide uppercase">Secure Administrative Access</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-5">

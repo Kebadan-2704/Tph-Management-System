@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "TPH Management",
   description: "Trinity Prayer House Management System",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/golden_text.png",
+  },
 };
 
 export default function RootLayout({
