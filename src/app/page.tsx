@@ -236,23 +236,15 @@ export default function Home() {
     doc.save(`Receipt_${tx.receipt_number}.pdf`)
   }
 
-  const sendWhatsApp = async (tx: Transaction) => {
+  const sendWhatsApp = (tx: Transaction) => {
     if (!family?.mobile) return alert('No mobile number registered.')
     let phone = family.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`
+    // Download PDF receipt first
     const doc = generateReceiptPDF(tx)
-    const pdfBlob = doc.output('blob')
-    const pdfFile = new File([pdfBlob], `Receipt_${tx.receipt_number}.pdf`, { type: 'application/pdf' })
-    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\nMay God bless you abundantly!`
-    // Try Web Share API (works on mobile — shares PDF directly to WhatsApp)
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-      try {
-        await navigator.share({ text: msg, files: [pdfFile] })
-        return
-      } catch (e) { /* user cancelled or share failed, fall through */ }
-    }
-    // Fallback: download PDF + open WhatsApp with text
     doc.save(`Receipt_${tx.receipt_number}.pdf`)
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    // Open WhatsApp directly to the person's number with message
+    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\nMay God bless you abundantly!`
+    setTimeout(() => { window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank') }, 500)
   }
 
   // ----------------------------------------------------
