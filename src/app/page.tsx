@@ -231,8 +231,8 @@ export default function Home() {
       </div>
 
       {/* Floating Island Header */}
-      <motion.header initial={{ y: -100 }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="sticky top-6 z-40 max-w-7xl mx-auto px-4 sm:px-6 mb-12">
-        <div className={`rounded-[2rem] p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border transition-all duration-500 ${isDarkMode ? 'bg-slate-900/80 border-white/10 shadow-2xl shadow-black/50' : 'bg-white/90 border-white shadow-2xl shadow-slate-300/50'} backdrop-blur-2xl`}>
+      <motion.header initial={{ y: -100 }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="sticky top-2 sm:top-6 z-40 max-w-7xl mx-auto px-2 sm:px-6 mb-6 sm:mb-12">
+        <div className={`rounded-2xl sm:rounded-[2rem] p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 border transition-all duration-500 ${isDarkMode ? 'bg-slate-900/80 border-white/10 shadow-2xl shadow-black/50' : 'bg-white/90 border-white shadow-2xl shadow-slate-300/50'} backdrop-blur-2xl`}>
           
           <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-4 cursor-pointer" onClick={() => setFamily(null)}>
@@ -295,10 +295,10 @@ export default function Home() {
         
         {/* --- GLOBAL OVERVIEW --- */}
         {!family && !loading && (
-          <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-8">
-            <motion.div variants={fadeUp} className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-4">
+          <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
+            <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6 mb-2 sm:mb-4">
               <div>
-                <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>Overview</h2>
+                <h2 className={`text-2xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>Overview</h2>
                 <p className={`text-sm mt-1 font-medium ${textSecondary}`}>Manage your entire church congregation seamlessly.</p>
               </div>
               {authRole === 'admin' && (
@@ -323,9 +323,9 @@ export default function Home() {
                 { label: 'Total Members', val: stats.members, icon: User, color: 'text-purple-500', bg: 'bg-purple-500/10' },
                 { label: 'Total Receipts', val: stats.txCount, icon: TrendingUp, color: 'text-emerald-500', bg: 'bg-emerald-500/10' }
               ].map((stat, i) => (
-                <div key={i} className={`${cardBg} rounded-3xl p-6 border flex items-center gap-6 transition-all duration-500 hover:scale-[1.02]`}>
-                  <div className={`w-16 h-16 ${stat.bg} rounded-2xl flex items-center justify-center shrink-0`}><stat.icon className={`w-8 h-8 ${stat.color}`} /></div>
-                  <div><p className={`text-xs font-bold uppercase tracking-widest ${textSecondary} mb-1`}>{stat.label}</p><p className={`text-4xl font-extrabold tracking-tight ${textPrimary}`}>{stat.val}</p></div>
+                <div key={i} className={`${cardBg} rounded-2xl sm:rounded-3xl p-5 sm:p-6 border flex items-center gap-4 sm:gap-6 transition-all duration-500 hover:scale-[1.02]`}>
+                  <div className={`w-14 h-14 sm:w-16 sm:h-16 ${stat.bg} rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0`}><stat.icon className={`w-7 h-7 sm:w-8 sm:h-8 ${stat.color}`} /></div>
+                  <div><p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${textSecondary} mb-1`}>{stat.label}</p><p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>{stat.val}</p></div>
                 </div>
               ))}
             </motion.div>
@@ -430,12 +430,12 @@ export default function Home() {
                         <div className="mb-4 sm:mb-0">
                           <p className={`font-bold text-lg ${textPrimary}`}>{tx.purpose}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-xs font-medium px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>{tx.receipt_number}</span>
-                            <span className={`text-xs font-medium ${textSecondary}`}>{new Date(tx.payment_date).toLocaleDateString()}</span>
+                            <span className={`text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>{tx.receipt_number}</span>
+                            <span className={`text-[10px] sm:text-xs font-bold ${textSecondary}`}>{new Date(tx.payment_date).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <span className="text-2xl font-extrabold text-emerald-500 mr-3">₹{tx.amount.toLocaleString()}</span>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
+                          <span className="text-xl sm:text-2xl font-extrabold text-emerald-500 mr-2 sm:mr-3">₹{tx.amount.toLocaleString()}</span>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => handleDeleteReceipt(tx.id)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Delete Receipt"><Trash2 className="w-5 h-5" /></motion.button>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp"><MessageCircle className="w-5 h-5" /></motion.button>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => printReceipt(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></motion.button>
@@ -493,8 +493,8 @@ export default function Home() {
         {/* --- MODALS --- */}
         <AnimatePresence>
           {showAddModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-start justify-center p-4 pt-12 sm:pt-20 overflow-y-auto">
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className={`rounded-[2.5rem] p-8 sm:p-10 w-full max-w-2xl shadow-2xl relative my-8 border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-start justify-center p-2 sm:p-4 pt-10 sm:pt-20 overflow-y-auto">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className={`rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 w-full max-w-2xl shadow-2xl relative my-8 border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}>
                 <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-3 rounded-full hover:bg-slate-500/10 text-slate-400 transition-colors"><X className="w-6 h-6" /></button>
                 <h2 className="text-3xl font-extrabold mb-8">Register New Family</h2>
                 <form onSubmit={handleAddFamily} className="space-y-8">
