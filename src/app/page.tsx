@@ -236,15 +236,20 @@ export default function Home() {
     doc.save(`Receipt_${tx.receipt_number}.pdf`)
   }
 
-  const sendWhatsApp = (tx: Transaction) => {
+  const sendWhatsApp = async (tx: Transaction) => {
     if (!family?.mobile) return alert('No mobile number registered.')
     let phone = family.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`
-    // Download PDF receipt first
     const doc = generateReceiptPDF(tx)
-    doc.save(`Receipt_${tx.receipt_number}.pdf`)
-    // Open WhatsApp directly to the person's number with message
-    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}\n\nMay God bless you abundantly!`
-    setTimeout(() => { window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank') }, 500)
+    const pdfBlob = doc.output('blob')
+    let pdfUrl = ''
+    try {
+      const filePath = `${tx.receipt_number}.pdf`
+      await supabase.storage.from('receipts').upload(filePath, pdfBlob, { contentType: 'application/pdf', upsert: true })
+      const { data } = supabase.storage.from('receipts').getPublicUrl(filePath)
+      pdfUrl = data?.publicUrl || ''
+    } catch (e) { console.error('Upload failed:', e) }
+    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}${pdfUrl ? `\n\n📄 *Download Receipt:*\n${pdfUrl}` : ''}\n\nMay God bless you abundantly!`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   // ----------------------------------------------------
