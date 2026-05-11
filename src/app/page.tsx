@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, User, MapPin, Phone, Mail, Calendar, Users, FileText, CheckCircle2, Plus, Printer, TrendingUp, MessageCircle, X, Gift, Lock, ShieldCheck, Megaphone, PieChart as PieChartIcon, Moon, Sun, Download, Edit3, UserPlus, LogOut, Trash2, ChevronRight } from 'lucide-react'
+import { Search, User, MapPin, Phone, Mail, Calendar, Users, FileText, CheckCircle2, Plus, Printer, TrendingUp, MessageCircle, X, Gift, Lock, ShieldCheck, Megaphone, PieChart as PieChartIcon, Moon, Sun, Download, Edit3, UserPlus, LogOut, Trash2, ChevronRight, Bell, PartyPopper, Cake } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'
 import jsPDF from 'jspdf'
 
@@ -12,6 +12,23 @@ type Member = { id: string; family_id: string; name: string; relationship: strin
 type Transaction = { id: string; receipt_number: string; amount: number; purpose: string; payment_date: string; remarks?: string }
 
 const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
+
+// Helper: parse day number from date strings like "03.May.1990", "05.Maym1969", "14.May.2010" etc.
+const parseDayFromDate = (dateStr: string): number => {
+  if (!dateStr) return 99;
+  const match = dateStr.match(/(\d{1,2})/);
+  return match ? parseInt(match[1], 10) : 99;
+};
+
+// Helper: check if a date string matches today's day and month
+const isTodayBirthday = (dateStr: string): boolean => {
+  if (!dateStr) return false;
+  const today = new Date();
+  const todayDay = today.getDate();
+  const todayMonth = today.toLocaleString('default', { month: 'short' });
+  const day = parseDayFromDate(dateStr);
+  return day === todayDay && dateStr.toLowerCase().includes(todayMonth.toLowerCase());
+};
 
 // Animation Variants
 const staggerContainer = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
@@ -37,6 +54,8 @@ export default function Home() {
   const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<{ names: string; marriage_date: string; family_name: string; key: string }[]>([])
   const [upcomingBaptisms, setUpcomingBaptisms] = useState<(Member & { families?: any })[]>([])
   const [chartData, setChartData] = useState<{name: string, value: number}[]>([])
+  const [todayBirthdays, setTodayBirthdays] = useState<(Member & { families?: any })[]>([])
+  const [showBirthdayNotif, setShowBirthdayNotif] = useState(true)
 
   const [amount, setAmount] = useState(''); const [purpose, setPurpose] = useState('Tithes'); const [remarks, setRemarks] = useState('')
   const [isSaving, setIsSaving] = useState(false); const [successMsg, setSuccessMsg] = useState('')
@@ -52,6 +71,15 @@ export default function Home() {
   const [editFam, setEditFam] = useState({ head_name: '', mobile: '', address: '' })
   const [newMember, setNewMember] = useState({ name: '', relationship: '', birth_date: '', marriage_date: '', baptism_date: '', gender: '' })
   const [isWorking, setIsWorking] = useState(false)
+  const [logoBase64, setLogoBase64] = useState('')
+
+  useEffect(() => {
+    fetch('/loooBlack.png').then(r => r.blob()).then(blob => {
+      const reader = new FileReader()
+      reader.onload = () => setLogoBase64(reader.result as string)
+      reader.readAsDataURL(blob)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!authRole) return;
@@ -70,8 +98,18 @@ export default function Home() {
       }
       const currentMonth = new Date().toLocaleString('default', { month: 'short' })
       if (allMembers) {
-        const bdays = allMembers.filter(m => m.birth_date && m.birth_date.includes(currentMonth))
+        // Birthdays - filter and sort by day ascending
+        const bdays = allMembers
+          .filter(m => m.birth_date && m.birth_date.includes(currentMonth))
+          .sort((a, b) => parseDayFromDate(a.birth_date) - parseDayFromDate(b.birth_date))
         setUpcomingBirthdays(bdays)
+
+        // Detect today's birthdays for notification
+        const todayBdays = bdays.filter(m => isTodayBirthday(m.birth_date))
+        setTodayBirthdays(todayBdays)
+        if (todayBdays.length > 0) setShowBirthdayNotif(true)
+
+        // Anniversaries - filter, group, and sort by day ascending
         const annivMembers = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
         const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string }> = {}
         annivMembers.forEach(m => {
@@ -79,8 +117,16 @@ export default function Home() {
           if (!annivGrouped[key]) annivGrouped[key] = { names: [], marriage_date: m.marriage_date, family_name: m.families?.head_name || '' }
           annivGrouped[key].names.push(m.name)
         })
-        setUpcomingAnniversaries(Object.entries(annivGrouped).map(([key, v]) => ({ names: v.names.join(' & '), marriage_date: v.marriage_date, family_name: v.family_name, key })))
-        const baptisms = allMembers.filter(m => m.baptism_date && m.baptism_date.includes(currentMonth))
+        setUpcomingAnniversaries(
+          Object.entries(annivGrouped)
+            .map(([key, v]) => ({ names: v.names.join(' & '), marriage_date: v.marriage_date, family_name: v.family_name, key }))
+            .sort((a, b) => parseDayFromDate(a.marriage_date) - parseDayFromDate(b.marriage_date))
+        )
+
+        // Baptisms - filter and sort by day ascending
+        const baptisms = allMembers
+          .filter(m => m.baptism_date && m.baptism_date.includes(currentMonth))
+          .sort((a, b) => parseDayFromDate(a.baptism_date) - parseDayFromDate(b.baptism_date))
         setUpcomingBaptisms(baptisms)
       }
     }
@@ -189,45 +235,56 @@ export default function Home() {
   const generateReceiptPDF = (tx: Transaction): jsPDF => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
     const w = doc.internal.pageSize.getWidth()
+    const h = doc.internal.pageSize.getHeight()
     // Header background
-    doc.setFillColor(15, 23, 42); doc.rect(0, 0, w, 52, 'F')
-    doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont('helvetica', 'bold')
-    doc.text('TRINITY PRAYER HOUSE', w / 2, 22, { align: 'center' })
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, w, 58, 'F')
+    // Logo at top
+    if (logoBase64) { try { doc.addImage(logoBase64, 'PNG', w / 2 - 8, 4, 16, 16) } catch(e) {} }
+    doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold')
+    doc.text('TRINITY PRAYER HOUSE', w / 2, 28, { align: 'center' })
     doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-    doc.text('Madukkarai, Coimbatore', w / 2, 30, { align: 'center' })
+    doc.text('Madukkarai, Coimbatore', w / 2, 35, { align: 'center' })
     doc.setFontSize(8); doc.setTextColor(148, 163, 184)
-    doc.text('Official Contribution Receipt', w / 2, 38, { align: 'center' })
+    doc.text('Official Contribution Receipt', w / 2, 42, { align: 'center' })
+    // Watermark — logo in center with low opacity
+    if (logoBase64) {
+      try {
+        doc.saveGraphicsState()
+        // @ts-ignore - GState is available on jsPDF API
+        const gs = new (jsPDF.API as any).GState({ opacity: 0.06 })
+        doc.setGState(gs)
+        doc.addImage(logoBase64, 'PNG', w / 2 - 28, h / 2 - 20, 56, 56)
+        doc.restoreGraphicsState()
+      } catch(e) {}
+    }
     // Dashed line
-    doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(15, 56, w - 15, 56)
+    doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(15, 62, w - 15, 62)
     // Receipt details
     doc.setLineDashPattern([], 0); doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
-    doc.text('RECEIPT NUMBER', 15, 66); doc.text('PAYMENT DATE', w / 2 + 5, 66)
+    doc.text('RECEIPT NUMBER', 15, 72); doc.text('PAYMENT DATE', w / 2 + 5, 72)
     doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
-    doc.text(tx.receipt_number, 15, 73); doc.text(new Date(tx.payment_date).toLocaleDateString('en-IN'), w / 2 + 5, 73)
+    doc.text(tx.receipt_number, 15, 79); doc.text(new Date(tx.payment_date).toLocaleDateString('en-IN'), w / 2 + 5, 79)
     doc.setTextColor(100, 116, 139); doc.setFontSize(8)
-    doc.text('RECEIVED FROM', 15, 84)
+    doc.text('RECEIVED FROM', 15, 90)
     doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
-    doc.text(`${family?.head_name || ''} (${family?.membership_id || ''})`, 15, 91)
-    doc.setTextColor(100, 116, 139); doc.setFontSize(8)
-    doc.text('PURPOSE OF CONTRIBUTION', 15, 102)
-    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
-    doc.text(tx.purpose, 15, 109)
+    doc.text(`${family?.head_name || ''} (${family?.membership_id || ''})`, 15, 97)
+    let nextY = 108
     if (tx.remarks) {
-      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.text('REMARKS', 15, 119)
+      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.text('REMARKS', 15, nextY)
       doc.setTextColor(30, 41, 59); doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-      doc.text(tx.remarks, 15, 126)
+      doc.text(tx.remarks, 15, nextY + 7)
+      nextY += 20
     }
     // Amount box
-    const amtY = tx.remarks ? 135 : 120
-    doc.setFillColor(15, 23, 42); doc.roundedRect(15, amtY, w - 30, 32, 4, 4, 'F')
+    doc.setFillColor(15, 23, 42); doc.roundedRect(15, nextY, w - 30, 32, 4, 4, 'F')
     doc.setTextColor(148, 163, 184); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
-    doc.text('AMOUNT RECEIVED', w / 2, amtY + 10, { align: 'center' })
+    doc.text('AMOUNT RECEIVED', w / 2, nextY + 10, { align: 'center' })
     doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.setFont('helvetica', 'bold')
-    doc.text(`Rs. ${tx.amount.toLocaleString('en-IN')}`, w / 2, amtY + 24, { align: 'center' })
+    doc.text(`Rs. ${tx.amount.toLocaleString('en-IN')}`, w / 2, nextY + 24, { align: 'center' })
     // Footer
     doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal')
-    doc.text('Thank you for your generous contribution.', w / 2, amtY + 46, { align: 'center' })
-    doc.text('May God bless you abundantly!', w / 2, amtY + 52, { align: 'center' })
+    doc.text('Thank you for your generous contribution.', w / 2, nextY + 46, { align: 'center' })
+    doc.text('May God bless you abundantly!', w / 2, nextY + 52, { align: 'center' })
     return doc
   }
 
@@ -369,6 +426,49 @@ export default function Home() {
         </div>
       </motion.header>
 
+      {/* 🎂 Birthday Notification Banner */}
+      <AnimatePresence>
+        {showBirthdayNotif && todayBirthdays.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -40, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg"
+          >
+            <div className="bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600 rounded-2xl sm:rounded-3xl p-[2px] shadow-2xl shadow-pink-500/30">
+              <div className={`${isDarkMode ? 'bg-slate-900' : 'bg-white'} rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden`}>
+                {/* Confetti-like decorative dots */}
+                <div className="absolute top-2 left-4 w-2 h-2 bg-pink-400 rounded-full opacity-60 animate-pulse"></div>
+                <div className="absolute top-4 right-8 w-1.5 h-1.5 bg-amber-400 rounded-full opacity-60 animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                <div className="absolute bottom-3 left-10 w-1.5 h-1.5 bg-purple-400 rounded-full opacity-60 animate-pulse" style={{ animationDelay: '0.6s' }}></div>
+                
+                <button onClick={() => setShowBirthdayNotif(false)} className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-slate-500/10 text-slate-400 transition-colors z-10">
+                  <X className="w-4 h-4" />
+                </button>
+                
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-amber-400 via-pink-500 to-purple-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-pink-500/30">
+                    <Cake className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold uppercase tracking-widest mb-1 bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600 bg-clip-text text-transparent`}>🎉 Birthday Today!</p>
+                    <div className="space-y-1">
+                      {todayBirthdays.map(m => (
+                        <p key={m.id} className={`text-sm sm:text-base font-bold ${textPrimary} truncate`}>
+                          {m.name} <span className={`text-xs font-medium ${textSecondary}`}>• {m.families?.head_name}&apos;s Family</span>
+                        </p>
+                      ))}
+                    </div>
+                    <p className={`text-xs mt-2 font-medium ${textSecondary}`}>Wish them a blessed birthday! 🎂</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         
         {/* --- GLOBAL OVERVIEW --- */}
@@ -435,12 +535,15 @@ export default function Home() {
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Birthdays in {new Date().toLocaleString('default', { month: 'long' })}</h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {upcomingBirthdays.length > 0 ? upcomingBirthdays.map(m => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                  {upcomingBirthdays.length > 0 ? upcomingBirthdays.map(m => {
+                    const isToday = isTodayBirthday(m.birth_date);
+                    return (
+                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className={`backdrop-blur-xl rounded-2xl p-4 flex items-center gap-4 shadow-lg ${isToday ? 'bg-amber-400/20 border-2 border-amber-300/60 shadow-amber-400/20' : 'bg-white/10 border border-white/20'}`}>
                       <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p></div>
+                      <div className="flex-1"><p className="font-bold text-base leading-tight">{m.name}{isToday && <span className="ml-2 text-[10px] bg-amber-400 text-amber-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🎂 Today</span>}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p></div>
                     </motion.div>
-                  )) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays this month.</p>}
+                    );
+                  }) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays this month.</p>}
                 </div>
               </motion.div>
             </div>
