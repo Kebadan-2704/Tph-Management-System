@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: "Trinity Prayer House Management System",
   manifest: "/manifest.json",
   icons: {
-    icon: "/golden_text.png",
+    icon: "/loooBlack.png",
   },
 };
 
