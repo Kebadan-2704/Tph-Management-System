@@ -33,7 +33,7 @@ export default function Home() {
   
   const [stats, setStats] = useState({ families: 0, members: 0, txCount: 0 })
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<(Member & { families?: any })[]>([])
-  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<(Member & { families?: any })[]>([])
+  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<{ names: string; marriage_date: string; family_name: string; key: string }[]>([])
   const [upcomingBaptisms, setUpcomingBaptisms] = useState<(Member & { families?: any })[]>([])
   const [chartData, setChartData] = useState<{name: string, value: number}[]>([])
 
@@ -71,8 +71,14 @@ export default function Home() {
       if (allMembers) {
         const bdays = allMembers.filter(m => m.birth_date && m.birth_date.includes(currentMonth))
         setUpcomingBirthdays(bdays)
-        const anniversaries = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
-        setUpcomingAnniversaries(anniversaries)
+        const annivMembers = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
+        const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string }> = {}
+        annivMembers.forEach(m => {
+          const key = `${m.family_id}_${m.marriage_date}`
+          if (!annivGrouped[key]) annivGrouped[key] = { names: [], marriage_date: m.marriage_date, family_name: m.families?.head_name || '' }
+          annivGrouped[key].names.push(m.name)
+        })
+        setUpcomingAnniversaries(Object.entries(annivGrouped).map(([key, v]) => ({ names: v.names.join(' & '), marriage_date: v.marriage_date, family_name: v.family_name, key })))
         const baptisms = allMembers.filter(m => m.baptism_date && m.baptism_date.includes(currentMonth))
         setUpcomingBaptisms(baptisms)
       }
@@ -381,10 +387,10 @@ export default function Home() {
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Calendar className="w-6 h-6 text-amber-200" /> Anniversaries in {new Date().toLocaleString('default', { month: 'long' })}</h3>
                 <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
-                  {upcomingAnniversaries.length > 0 ? upcomingAnniversaries.map(m => (
-                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-rose-100 mt-1 font-medium">{m.marriage_date} • {m.families?.head_name}&apos;s Family</p></div>
+                  {upcomingAnniversaries.length > 0 ? upcomingAnniversaries.map(a => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={a.key} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                      <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg">💒</div>
+                      <div><p className="font-bold text-base leading-tight">{a.names}</p><p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p></div>
                     </motion.div>
                   )) : <p className="text-rose-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No anniversaries this month.</p>}
                 </div>
