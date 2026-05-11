@@ -8,7 +8,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 
 type Family = { id: string; membership_id: string; head_name: string; address: string; place: string; mobile: string; email: string; join_date: string }
 type Member = { id: string; family_id: string; name: string; relationship: string; gender: string; birth_date: string; baptism_date: string; marriage_date: string }
-type Transaction = { id: string; receipt_number: string; amount: number; purpose: string; payment_date: string }
+type Transaction = { id: string; receipt_number: string; amount: number; purpose: string; payment_date: string; remarks?: string }
 
 const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
 
@@ -33,9 +33,11 @@ export default function Home() {
   
   const [stats, setStats] = useState({ families: 0, members: 0, txCount: 0 })
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<(Member & { families?: any })[]>([])
+  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<(Member & { families?: any })[]>([])
+  const [upcomingBaptisms, setUpcomingBaptisms] = useState<(Member & { families?: any })[]>([])
   const [chartData, setChartData] = useState<{name: string, value: number}[]>([])
 
-  const [amount, setAmount] = useState(''); const [purpose, setPurpose] = useState('Tithes')
+  const [amount, setAmount] = useState(''); const [purpose, setPurpose] = useState('Tithes'); const [remarks, setRemarks] = useState('')
   const [isSaving, setIsSaving] = useState(false); const [successMsg, setSuccessMsg] = useState('')
   
   const [showAddModal, setShowAddModal] = useState(false)
@@ -47,7 +49,7 @@ export default function Home() {
   
   const [newFam, setNewFam] = useState({ head_name: '', mobile: '', address: '', place: '', email: '', gender: '', birth_date: '', baptism_date: '', marriage_date: '' })
   const [editFam, setEditFam] = useState({ head_name: '', mobile: '', address: '' })
-  const [newMember, setNewMember] = useState({ name: '', relationship: '', birth_date: '', marriage_date: '', gender: '' })
+  const [newMember, setNewMember] = useState({ name: '', relationship: '', birth_date: '', marriage_date: '', baptism_date: '', gender: '' })
   const [isWorking, setIsWorking] = useState(false)
 
   useEffect(() => {
@@ -69,6 +71,10 @@ export default function Home() {
       if (allMembers) {
         const bdays = allMembers.filter(m => m.birth_date && m.birth_date.includes(currentMonth))
         setUpcomingBirthdays(bdays)
+        const anniversaries = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
+        setUpcomingAnniversaries(anniversaries)
+        const baptisms = allMembers.filter(m => m.baptism_date && m.baptism_date.includes(currentMonth))
+        setUpcomingBaptisms(baptisms)
       }
     }
     loadDashboard()
@@ -123,9 +129,9 @@ export default function Home() {
     e.preventDefault(); if (!family || !amount || isNaN(Number(amount))) return; setIsSaving(true)
     const receiptNumber = `REC-${Date.now()}`
     try {
-      const { data: newTx, error } = await supabase.from('transactions').insert({ family_id: family.id, receipt_number: receiptNumber, amount: Number(amount), purpose, payment_date: new Date().toISOString() }).select().single()
+      const { data: newTx, error } = await supabase.from('transactions').insert({ family_id: family.id, receipt_number: receiptNumber, amount: Number(amount), purpose, payment_date: new Date().toISOString(), remarks: remarks || null }).select().single()
       if (error) throw error
-      setTransactions([newTx, ...transactions]); setStats(prev => ({ ...prev, txCount: prev.txCount + 1 })); setAmount(''); setPurpose('Tithes')
+      setTransactions([newTx, ...transactions]); setStats(prev => ({ ...prev, txCount: prev.txCount + 1 })); setAmount(''); setPurpose('Tithes'); setRemarks('')
       setSuccessMsg('Receipt saved successfully!'); setTimeout(() => setSuccessMsg(''), 3000)
     } catch (err) { alert('Failed to save receipt.') } finally { setIsSaving(false) }
   }
@@ -154,16 +160,16 @@ export default function Home() {
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault(); setIsWorking(true)
     try {
-      const { data: mData, error } = await supabase.from('members').insert({ family_id: family?.id, name: newMember.name, relationship: newMember.relationship, gender: newMember.gender, birth_date: newMember.birth_date, marriage_date: newMember.marriage_date }).select().single()
+      const { data: mData, error } = await supabase.from('members').insert({ family_id: family?.id, name: newMember.name, relationship: newMember.relationship, gender: newMember.gender, birth_date: newMember.birth_date, baptism_date: newMember.baptism_date, marriage_date: newMember.marriage_date }).select().single()
       if (error) throw error
-      setMembers([...members, mData]); setShowAddMemberModal(false); setNewMember({ name: '', relationship: '', birth_date: '', marriage_date: '', gender: '' })
+      setMembers([...members, mData]); setShowAddMemberModal(false); setNewMember({ name: '', relationship: '', birth_date: '', marriage_date: '', baptism_date: '', gender: '' })
     } catch(err) { alert("Error adding member.") } finally { setIsWorking(false) }
   }
 
   const handleEditDependent = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editDependent) return; setIsWorking(true)
     try {
-      const { data, error } = await supabase.from('members').update({ name: editDependent.name, relationship: editDependent.relationship, gender: editDependent.gender, birth_date: editDependent.birth_date, marriage_date: editDependent.marriage_date }).eq('id', editDependent.id).select().single()
+      const { data, error } = await supabase.from('members').update({ name: editDependent.name, relationship: editDependent.relationship, gender: editDependent.gender, birth_date: editDependent.birth_date, baptism_date: editDependent.baptism_date, marriage_date: editDependent.marriage_date }).eq('id', editDependent.id).select().single()
       if (error) throw error
       setMembers(members.map(m => m.id === data.id ? data : m)); setShowEditDependentModal(false)
     } catch(err) { alert("Error updating member.") } finally { setIsWorking(false) }
@@ -186,14 +192,14 @@ export default function Home() {
           <motion.div animate={{ rotate: -360 }} transition={{ duration: 120, repeat: Infinity, ease: "linear" }} className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] bg-purple-600/20 rounded-full blur-[100px] mix-blend-screen"></motion.div>
         </div>
 
-        <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="bg-slate-900/60 backdrop-blur-3xl rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl border border-white/10 relative z-10">
-          <div className="flex flex-col items-center justify-center mb-8">
-            <div className="w-24 h-24 bg-slate-950 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-black mb-6 border border-white/5 p-4 relative">
+        <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="bg-slate-900/60 backdrop-blur-3xl rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 w-full max-w-md shadow-2xl border border-white/10 relative z-10 mx-4">
+          <div className="flex flex-col items-center justify-center mb-6 sm:mb-8">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-950 rounded-2xl sm:rounded-[2rem] flex items-center justify-center shadow-2xl shadow-black mb-4 sm:mb-6 border border-white/5 p-4 relative">
               <div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full"></div>
               <img src="/looowhite.png" alt="Trinity Logo" className="w-full h-full object-contain relative z-10" />
             </div>
-            <h1 className="text-3xl font-extrabold text-white text-center tracking-tight mb-2">Trinity Portal</h1>
-            <p className="text-slate-400 text-center text-sm font-medium tracking-wide uppercase">Secure Administrative Access</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white text-center tracking-tight mb-2">Trinity Portal</h1>
+            <p className="text-slate-400 text-center text-xs sm:text-sm font-medium tracking-wide uppercase">Secure Administrative Access</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-5">
@@ -352,19 +358,50 @@ export default function Home() {
               )}
 
               {/* Birthdays Section */}
-              <motion.div variants={scaleIn} className={`bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 rounded-3xl p-8 shadow-2xl shadow-blue-900/20 text-white relative overflow-hidden ${authRole !== 'admin' ? 'lg:col-span-5' : 'lg:col-span-2'}`}>
+              <motion.div variants={scaleIn} className={`bg-gradient-to-br from-indigo-600 via-blue-600 to-purple-700 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-blue-900/20 text-white relative overflow-hidden ${authRole !== 'admin' ? 'lg:col-span-5' : 'lg:col-span-2'}`}>
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
                 <div className="absolute left-0 bottom-0 w-64 h-64 bg-pink-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
-                
-                <h3 className="text-xl font-bold mb-8 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Birthdays in {new Date().toLocaleString('default', { month: 'long' })}</h3>
-                
-                <div className="space-y-4 relative z-10 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Gift className="w-6 h-6 text-pink-300" /> Birthdays in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
                   {upcomingBirthdays.length > 0 ? upcomingBirthdays.map(m => (
                     <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
                       <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
-                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}'s Family</p></div>
+                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p></div>
                     </motion.div>
-                  )) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays recorded for this month.</p>}
+                  )) : <p className="text-blue-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No birthdays this month.</p>}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Anniversaries & Baptisms Row */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Anniversaries Section */}
+              <motion.div variants={scaleIn} className="bg-gradient-to-br from-rose-500 via-pink-600 to-amber-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-rose-900/20 text-white relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                <div className="absolute left-0 bottom-0 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><Calendar className="w-6 h-6 text-amber-200" /> Anniversaries in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
+                  {upcomingAnniversaries.length > 0 ? upcomingAnniversaries.map(m => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
+                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-rose-100 mt-1 font-medium">{m.marriage_date} • {m.families?.head_name}&apos;s Family</p></div>
+                    </motion.div>
+                  )) : <p className="text-rose-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No anniversaries this month.</p>}
+                </div>
+              </motion.div>
+
+              {/* Baptisms Section */}
+              <motion.div variants={scaleIn} className="bg-gradient-to-br from-teal-500 via-cyan-600 to-sky-700 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl shadow-teal-900/20 text-white relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                <div className="absolute left-0 bottom-0 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 relative z-10"><CheckCircle2 className="w-6 h-6 text-sky-200" /> Baptisms in {new Date().toLocaleString('default', { month: 'long' })}</h3>
+                <div className="space-y-3 relative z-10 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar">
+                  {upcomingBaptisms.length > 0 ? upcomingBaptisms.map(m => (
+                    <motion.div whileHover={{ scale: 1.02 }} key={m.id} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
+                      <div><p className="font-bold text-base leading-tight">{m.name}</p><p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p></div>
+                    </motion.div>
+                  )) : <p className="text-teal-200 font-medium bg-white/5 p-4 rounded-xl border border-white/10">No baptisms this month.</p>}
                 </div>
               </motion.div>
             </div>
@@ -410,8 +447,12 @@ export default function Home() {
                     <div>
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Purpose</label>
                       <select className="w-full bg-slate-800/50 rounded-2xl px-5 py-3.5 text-white border border-slate-700 focus:border-blue-500 focus:outline-none transition-all font-semibold appearance-none" value={purpose} onChange={e => setPurpose(e.target.value)}>
-                        <option>Tithes</option><option>Thanksgiving</option><option>Offering</option><option>Mission</option><option>Building Fund</option>
+                        <option>Tithes</option><option>Thanksgiving</option><option>Offering</option><option>Mission</option><option>Building Fund</option><option>Missionary</option><option>Family Card</option><option>Van</option><option>VBS</option><option>Sing Song</option><option>Special Meeting</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Remarks (Optional)</label>
+                      <textarea className="w-full bg-slate-800/50 rounded-2xl px-5 py-3.5 text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all font-medium text-sm" rows={2} placeholder="Add any notes..." value={remarks} onChange={e => setRemarks(e.target.value)}></textarea>
                     </div>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 font-bold py-4 rounded-2xl mt-4 shadow-lg shadow-blue-500/30">{isSaving ? 'Processing...' : 'Save & Generate'}</motion.button>
                   </form>
@@ -433,6 +474,7 @@ export default function Home() {
                             <span className={`text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>{tx.receipt_number}</span>
                             <span className={`text-[10px] sm:text-xs font-bold ${textSecondary}`}>{new Date(tx.payment_date).toLocaleDateString()}</span>
                           </div>
+                          {tx.remarks && <p className={`text-xs mt-2 italic ${textSecondary}`}>📝 {tx.remarks}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                           <span className="text-xl sm:text-2xl font-extrabold text-emerald-500 mr-2 sm:mr-3">₹{tx.amount.toLocaleString()}</span>
@@ -448,7 +490,7 @@ export default function Home() {
               )}
 
               {/* Members Table */}
-              <motion.div variants={scaleIn} className={`${cardBg} rounded-[2.5rem] p-6 sm:p-8 border transition-colors duration-500`}>
+              <motion.div variants={scaleIn} className={`${cardBg} rounded-3xl sm:rounded-[2.5rem] p-5 sm:p-8 border transition-colors duration-500`}>
                 <div className="flex items-center justify-between mb-8">
                   <div>
                     <h3 className={`text-2xl font-extrabold ${textPrimary}`}>Dependents</h3>
@@ -512,9 +554,9 @@ export default function Home() {
                     <h3 className="text-xs font-bold text-pink-500 uppercase tracking-widest border-b border-slate-500/20 pb-3">Head Personal Details</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div><label className="text-sm font-bold block mb-2 text-slate-500">Gender</label><select className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium transition-all appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.gender} onChange={e => setNewFam({...newFam, gender: e.target.value})}><option value="">Select Gender</option><option>Male</option><option>Female</option></select></div>
-                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth</label><input type="text" placeholder="e.g. 28.Oct.1977" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.birth_date} onChange={e => setNewFam({...newFam, birth_date: e.target.value})} /></div>
-                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Baptism Date</label><input type="text" placeholder="e.g. 15.May.1990" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.baptism_date} onChange={e => setNewFam({...newFam, baptism_date: e.target.value})} /></div>
-                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Marriage Date</label><input type="text" placeholder="e.g. 05.Dec.2005" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.marriage_date} onChange={e => setNewFam({...newFam, marriage_date: e.target.value})} /></div>
+                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.birth_date} onChange={e => setNewFam({...newFam, birth_date: e.target.value})} /></div>
+                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Baptism Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.baptism_date} onChange={e => setNewFam({...newFam, baptism_date: e.target.value})} /></div>
+                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Marriage Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.marriage_date} onChange={e => setNewFam({...newFam, marriage_date: e.target.value})} /></div>
                     </div>
                   </div>
                   <div className="pt-2">
@@ -533,14 +575,46 @@ export default function Home() {
           )}
 
           {showAddMemberModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}><button onClick={() => setShowAddMemberModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button><h2 className="text-2xl font-extrabold mb-8">Add Dependent</h2><form onSubmit={handleAddMember} className="space-y-5"><div><label className="text-sm font-bold block mb-2 text-slate-500">Full Name *</label><input type="text" required className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.name} onChange={e => setNewMember({...newMember, name: e.target.value})} /></div><div className="grid grid-cols-2 gap-5"><div><label className="text-sm font-bold block mb-2 text-slate-500">Relation</label><input type="text" placeholder="e.g. Son" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.relationship} onChange={e => setNewMember({...newMember, relationship: e.target.value})} /></div><div><label className="text-sm font-bold block mb-2 text-slate-500">Gender</label><select className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.gender} onChange={e => setNewMember({...newMember, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div></div><div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth (Optional)</label><input type="text" placeholder="e.g. 15.May.2010" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.birth_date} onChange={e => setNewMember({...newMember, birth_date: e.target.value})} /></div><motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isWorking} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-4 rounded-2xl mt-4 shadow-xl shadow-blue-500/30 text-lg transition-all">{isWorking ? 'Adding...' : 'Add Member'}</motion.button></form></motion.div>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-start justify-center p-2 sm:p-4 pt-10 sm:pt-20 overflow-y-auto">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative my-8 border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}>
+                <button onClick={() => setShowAddMemberModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button>
+                <h2 className="text-2xl font-extrabold mb-8">Add Dependent</h2>
+                <form onSubmit={handleAddMember} className="space-y-5">
+                  <div><label className="text-sm font-bold block mb-2 text-slate-500">Full Name *</label><input type="text" required className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.name} onChange={e => setNewMember({...newMember, name: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Relation</label><input type="text" placeholder="e.g. Son" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.relationship} onChange={e => setNewMember({...newMember, relationship: e.target.value})} /></div>
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Gender</label><select className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.gender} onChange={e => setNewMember({...newMember, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+                  </div>
+                  <div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.birth_date} onChange={e => setNewMember({...newMember, birth_date: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Baptism Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.baptism_date} onChange={e => setNewMember({...newMember, baptism_date: e.target.value})} /></div>
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Marriage Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newMember.marriage_date} onChange={e => setNewMember({...newMember, marriage_date: e.target.value})} /></div>
+                  </div>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isWorking} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-4 rounded-2xl mt-4 shadow-xl shadow-blue-500/30 text-lg transition-all">{isWorking ? 'Adding...' : 'Add Member'}</motion.button>
+                </form>
+              </motion.div>
             </div>
           )}
 
           {showEditDependentModal && editDependent && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}><button onClick={() => setShowEditDependentModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button><h2 className="text-2xl font-extrabold mb-8">Edit Dependent</h2><form onSubmit={handleEditDependent} className="space-y-5"><div><label className="text-sm font-bold block mb-2 text-slate-500">Full Name *</label><input type="text" required className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.name} onChange={e => setEditDependent({...editDependent, name: e.target.value})} /></div><div className="grid grid-cols-2 gap-5"><div><label className="text-sm font-bold block mb-2 text-slate-500">Relation</label><input type="text" placeholder="e.g. Son" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.relationship} onChange={e => setEditDependent({...editDependent, relationship: e.target.value})} /></div><div><label className="text-sm font-bold block mb-2 text-slate-500">Gender</label><select className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.gender} onChange={e => setEditDependent({...editDependent, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div></div><div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth (Optional)</label><input type="text" placeholder="e.g. 15.May.2010" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.birth_date} onChange={e => setEditDependent({...editDependent, birth_date: e.target.value})} /></div><motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isWorking} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-4 rounded-2xl mt-4 shadow-xl shadow-blue-500/30 text-lg transition-all">{isWorking ? 'Updating...' : 'Update Member'}</motion.button></form></motion.div>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-start justify-center p-2 sm:p-4 pt-10 sm:pt-20 overflow-y-auto">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl relative my-8 border ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-white'}`}>
+                <button onClick={() => setShowEditDependentModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"><X className="w-6 h-6" /></button>
+                <h2 className="text-2xl font-extrabold mb-8">Edit Dependent</h2>
+                <form onSubmit={handleEditDependent} className="space-y-5">
+                  <div><label className="text-sm font-bold block mb-2 text-slate-500">Full Name *</label><input type="text" required className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.name} onChange={e => setEditDependent({...editDependent, name: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Relation</label><input type="text" placeholder="e.g. Son" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.relationship} onChange={e => setEditDependent({...editDependent, relationship: e.target.value})} /></div>
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Gender</label><select className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.gender} onChange={e => setEditDependent({...editDependent, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+                  </div>
+                  <div><label className="text-sm font-bold block mb-2 text-slate-500">Date of Birth</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.birth_date} onChange={e => setEditDependent({...editDependent, birth_date: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Baptism Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.baptism_date} onChange={e => setEditDependent({...editDependent, baptism_date: e.target.value})} /></div>
+                    <div><label className="text-sm font-bold block mb-2 text-slate-500">Marriage Date</label><input type="date" className={`w-full border rounded-2xl px-5 py-3 outline-none font-medium focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={editDependent.marriage_date} onChange={e => setEditDependent({...editDependent, marriage_date: e.target.value})} /></div>
+                  </div>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isWorking} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-4 rounded-2xl mt-4 shadow-xl shadow-blue-500/30 text-lg transition-all">{isWorking ? 'Updating...' : 'Update Member'}</motion.button>
+                </form>
+              </motion.div>
             </div>
           )}
 
