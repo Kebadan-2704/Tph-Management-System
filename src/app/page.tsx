@@ -1,52 +1,33 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/utils/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, User, MapPin, Phone, Mail, Calendar, Users, FileText, CheckCircle2, Plus, Printer, TrendingUp, MessageCircle, X, Gift, Lock, ShieldCheck, Megaphone, PieChart as PieChartIcon, Moon, Sun, Download, Edit3, UserPlus, LogOut, Trash2, ChevronRight, Bell, PartyPopper, Cake } from 'lucide-react'
+import { User, MapPin, Phone, Calendar, Users, FileText, CheckCircle2, Plus, Printer, TrendingUp, MessageCircle, X, Gift, Megaphone, PieChart as PieChartIcon, Download, Edit3, UserPlus, Trash2, Cake, Search } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'
-import jsPDF from 'jspdf'
+import { useAuth } from '@/components/AuthProvider'
+import { useTheme } from '@/hooks/useTheme'
+import DashboardShell from '@/components/DashboardShell'
+import SearchEngine from '@/components/SearchEngine'
+import AIChatBot from '@/components/AIChatBot'
+import { parseDayFromDate, isTodayBirthday, isTodayAnniversary, isTodayBaptism, isMonthMatch, CHART_COLORS, staggerContainer, fadeUp, scaleIn } from '@/utils/helpers'
+import { generateReceiptPDF, downloadPDF, sendWhatsApp, printReceipt, generateMonthlyReportPDF } from '@/utils/pdf'
+import type { Family, Member, Transaction, AnniversaryGroup } from '@/utils/types'
 
-type Family = { id: string; membership_id: string; head_name: string; address: string; place: string; mobile: string; email: string; join_date: string }
-type Member = { id: string; family_id: string; name: string; relationship: string; gender: string; birth_date: string; baptism_date: string; marriage_date: string }
-type Transaction = { id: string; receipt_number: string; amount: number; purpose: string; payment_date: string; remarks?: string }
-
-const CHART_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
-
-// Helper: parse day number from date strings like "03.May.1990", "05.Maym1969", "14.May.2010" etc.
-const parseDayFromDate = (dateStr: string): number => {
-  if (!dateStr) return 99;
-  const match = dateStr.match(/(\d{1,2})/);
-  return match ? parseInt(match[1], 10) : 99;
-};
-
-// Helper: check if a date string matches today's day and month
-const isTodayEvent = (dateStr: string): boolean => {
-  if (!dateStr) return false;
-  const today = new Date();
-  const todayDay = today.getDate();
-  const todayMonth = today.toLocaleString('default', { month: 'short' });
-  const day = parseDayFromDate(dateStr);
-  return day === todayDay && dateStr.toLowerCase().includes(todayMonth.toLowerCase());
-};
-
-const isTodayBirthday = isTodayEvent;
-const isTodayAnniversary = isTodayEvent;
-const isTodayBaptism = isTodayEvent;
-
-// Animation Variants
-const staggerContainer = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
-const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } }
-const scaleIn = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale: 1, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } } }
+const calculateAge = (dob: string | null) => {
+  if (!dob) return '';
+  const diffMs = Date.now() - new Date(dob).getTime();
+  const ageDt = new Date(diffMs);
+  const age = Math.abs(ageDt.getUTCFullYear() - 1970);
+  return ` (${age} yrs)`;
+}
 
 export default function Home() {
-  const [authRole, setAuthRole] = useState<'admin' | 'volunteer' | null>(null)
-  const [passcode, setPasscode] = useState(''); const [authError, setAuthError] = useState('')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const router = useRouter()
+  const { authRole, isLoading: authLoading } = useAuth()
+  const { isDarkMode, cardBg, textPrimary, textSecondary, inputBg } = useTheme()
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [suggestions, setSuggestions] = useState<Family[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
   const [loading, setLoading] = useState(false)
   
   const [family, setFamily] = useState<Family | null>(null)
@@ -55,13 +36,17 @@ export default function Home() {
   
   const [stats, setStats] = useState({ families: 0, members: 0, txCount: 0 })
   const [upcomingBirthdays, setUpcomingBirthdays] = useState<(Member & { families?: any })[]>([])
-  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<{ names: string; marriage_date: string; family_name: string; key: string }[]>([])
+  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState<AnniversaryGroup[]>([])
   const [upcomingBaptisms, setUpcomingBaptisms] = useState<(Member & { families?: any })[]>([])
   const [chartData, setChartData] = useState<{name: string, value: number}[]>([])
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [chartLoading, setChartLoading] = useState(false)
   const [todayBirthdays, setTodayBirthdays] = useState<(Member & { families?: any })[]>([])
   const [showBirthdayNotif, setShowBirthdayNotif] = useState(true)
 
   const [amount, setAmount] = useState(''); const [purpose, setPurpose] = useState('Tithes'); const [remarks, setRemarks] = useState('')
+  const [editingTxId, setEditingTxId] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false); const [successMsg, setSuccessMsg] = useState('')
   
   const [showAddModal, setShowAddModal] = useState(false)
@@ -81,6 +66,11 @@ export default function Home() {
   const [isWorking, setIsWorking] = useState(false)
   const [logoBase64, setLogoBase64] = useState('')
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !authRole) router.replace('/login');
+  }, [authRole, authLoading, router]);
+
   useEffect(() => {
     fetch('/loooBlack.png').then(r => r.blob()).then(blob => {
       const reader = new FileReader()
@@ -92,23 +82,18 @@ export default function Home() {
   useEffect(() => {
     if (!authRole) return;
     async function loadDashboard() {
-      const [{ count: fCount }, { count: mCount }, { count: txCount }, { data: allTx }, { data: allMembers }] = await Promise.all([
+      const [{ count: fCount }, { count: mCount }, { count: txCount }, { data: allMembers }] = await Promise.all([
         supabase.from('families').select('*', { count: 'exact', head: true }),
         supabase.from('members').select('*', { count: 'exact', head: true }),
         supabase.from('transactions').select('*', { count: 'exact', head: true }),
-        supabase.from('transactions').select('amount, purpose'),
-        supabase.from('members').select('*, families(head_name, mobile)')
+        supabase.from('members').select('id, name, family_id, birth_date, marriage_date, baptism_date, relationship, gender, families(head_name, mobile)')
       ])
       setStats({ families: fCount || 0, members: mCount || 0, txCount: txCount || 0 })
-      if (allTx) {
-        const grouped = allTx.reduce((acc: any, tx) => { acc[tx.purpose] = (acc[tx.purpose] || 0) + Number(tx.amount); return acc; }, {});
-        setChartData(Object.keys(grouped).map(k => ({ name: k, value: grouped[k] })))
-      }
       const currentMonth = new Date().toLocaleString('default', { month: 'short' })
       if (allMembers) {
         // Birthdays - filter and sort by day ascending
-        const bdays = allMembers
-          .filter(m => m.birth_date && m.birth_date.includes(currentMonth))
+        const bdays = (allMembers as any[])
+          .filter(m => m.birth_date && isMonthMatch(m.birth_date, currentMonth))
           .sort((a, b) => parseDayFromDate(a.birth_date) - parseDayFromDate(b.birth_date))
         setUpcomingBirthdays(bdays)
 
@@ -118,7 +103,7 @@ export default function Home() {
         if (todayBdays.length > 0) setShowBirthdayNotif(true)
 
         // Anniversaries - filter, group, and sort by day ascending
-        const annivMembers = allMembers.filter(m => m.marriage_date && m.marriage_date.includes(currentMonth))
+        const annivMembers = (allMembers as any[]).filter(m => m.marriage_date && isMonthMatch(m.marriage_date, currentMonth))
         const annivGrouped: Record<string, { names: string[]; marriage_date: string; family_name: string; mobile: string }> = {}
         annivMembers.forEach(m => {
           const key = `${m.family_id}_${m.marriage_date}`
@@ -132,8 +117,8 @@ export default function Home() {
         )
 
         // Baptisms - filter and sort by day ascending
-        const baptisms = allMembers
-          .filter(m => m.baptism_date && m.baptism_date.includes(currentMonth))
+        const baptisms = (allMembers as any[])
+          .filter(m => m.baptism_date && isMonthMatch(m.baptism_date, currentMonth))
           .sort((a, b) => parseDayFromDate(a.baptism_date) - parseDayFromDate(b.baptism_date))
         setUpcomingBaptisms(baptisms)
       }
@@ -142,32 +127,32 @@ export default function Home() {
   }, [authRole])
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchTerm.trim().length > 1) {
-        let searchId = searchTerm.trim()
-        if (/^\d+$/.test(searchId)) searchId = `TPH-MDK-${searchId.padStart(5, '0')}`
-        
-        const { data: mData } = await supabase.from('members').select('family_id').ilike('name', `%${searchTerm}%`).limit(20)
-        const familyIds = mData ? mData.map(m => m.family_id) : []
-        
-        let query = supabase.from('families').select('*')
-        if (familyIds.length > 0) {
-            query = query.or(`membership_id.ilike.%${searchId}%,head_name.ilike.%${searchTerm}%,id.in.(${familyIds.join(',')})`)
-        } else {
-            query = query.or(`membership_id.ilike.%${searchId}%,head_name.ilike.%${searchTerm}%`)
-        }
-        
-        const { data } = await query.limit(8)
-        setSuggestions(data || []); setShowSuggestions(true)
-      } else { setSuggestions([]); setShowSuggestions(false) }
-    }, 300)
-    return () => clearTimeout(delayDebounceFn)
-  }, [searchTerm])
-
-  const handleLogin = (e: React.FormEvent) => { e.preventDefault(); if (passcode === 'admin123') setAuthRole('admin'); else if (passcode === 'tph123') setAuthRole('volunteer'); else setAuthError('Invalid Access Code') }
+    if (!authRole) return;
+    async function fetchChartData() {
+      setChartLoading(true);
+      let query = supabase.from('transactions').select('amount, purpose');
+      if (startDate) query = query.gte('payment_date', `${startDate}T00:00:00Z`);
+      if (endDate) query = query.lte('payment_date', `${endDate}T23:59:59Z`);
+      const { data: allTx } = await query;
+      if (allTx && allTx.length > 0) {
+        const grouped = allTx.reduce((acc: any, tx) => { acc[tx.purpose] = (acc[tx.purpose] || 0) + Number(tx.amount); return acc; }, {});
+        const total = Object.values(grouped).reduce((s: number, v: any) => s + v, 0) as number;
+        const entries = Object.entries(grouped).map(([k, v]) => ({ name: k, value: v as number }));
+        const threshold = total * 0.01;
+        const major = entries.filter(e => e.value >= threshold);
+        const minorTotal = entries.filter(e => e.value < threshold).reduce((s, e) => s + e.value, 0);
+        if (minorTotal > 0) major.push({ name: 'Other', value: minorTotal });
+        setChartData(major.sort((a, b) => b.value - a.value));
+      } else {
+        setChartData([]);
+      }
+      setChartLoading(false);
+    }
+    fetchChartData();
+  }, [authRole, startDate, endDate, stats.txCount]);
 
   const selectFamily = async (selectedFamily: Family) => {
-    setSearchTerm(''); setShowSuggestions(false); setLoading(true); setFamily(selectedFamily); setSuccessMsg('')
+    setLoading(true); setFamily(selectedFamily); setSuccessMsg('')
     try {
       const [{ data: mData }, { data: txData }] = await Promise.all([
         supabase.from('members').select('*').eq('family_id', selectedFamily.id),
@@ -188,12 +173,22 @@ export default function Home() {
 
   const handleSaveReceipt = async (e: React.FormEvent) => {
     e.preventDefault(); if (!family || !amount || isNaN(Number(amount))) return; setIsSaving(true)
-    const receiptNumber = `REC-${Date.now()}`
     try {
-      const { data: newTx, error } = await supabase.from('transactions').insert({ family_id: family.id, receipt_number: receiptNumber, amount: Number(amount), purpose, payment_date: new Date().toISOString(), remarks: remarks || null }).select().single()
-      if (error) throw error
-      setTransactions([newTx, ...transactions]); setStats(prev => ({ ...prev, txCount: prev.txCount + 1 })); setAmount(''); setPurpose('Tithes'); setRemarks('')
-      setSuccessMsg('Receipt saved successfully!'); setTimeout(() => setSuccessMsg(''), 3000)
+      if (editingTxId) {
+        const { data: updatedTx, error } = await supabase.from('transactions').update({ amount: Number(amount), purpose, remarks: remarks || null }).eq('id', editingTxId).select().single()
+        if (error) throw error
+        setTransactions(transactions.map(t => t.id === editingTxId ? updatedTx : t))
+        setSuccessMsg('Receipt updated successfully!')
+        setEditingTxId(null)
+      } else {
+        const receiptNumber = `REC-${Date.now()}`
+        const { data: newTx, error } = await supabase.from('transactions').insert({ family_id: family.id, receipt_number: receiptNumber, amount: Number(amount), purpose, payment_date: new Date().toISOString(), remarks: remarks || null }).select().single()
+        if (error) throw error
+        setTransactions([newTx, ...transactions]); setStats(prev => ({ ...prev, txCount: prev.txCount + 1 }))
+        setSuccessMsg('Receipt saved successfully!')
+      }
+      setAmount(''); setPurpose('Tithes'); setRemarks('')
+      setTimeout(() => setSuccessMsg(''), 3000)
     } catch (err) { alert('Failed to save receipt.') } finally { setIsSaving(false) }
   }
 
@@ -260,7 +255,7 @@ export default function Home() {
     if (!fam.mobile) return;
     let phone = fam.mobile.replace(/\D/g, '');
     if (phone.length === 10) phone = `91${phone}`
-    const msg = `*Trinity Prayer House*\n\nDear ${fam.head_name},\n\n${broadcastMsg}\n\n_God Bless You!_`
+    const msg = `*Trinity Prayer House*\n\nDear ${fam.head_name},\n\n${broadcastMsg}\n\n_God Bless You!_\n\nPr Vasanth Sathyanathan`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
     
     if (broadcastIndex < broadcastList.length - 1) {
@@ -274,201 +269,88 @@ export default function Home() {
     }
   }
   const handleDeleteReceipt = async (txId: string) => { if (!confirm("Delete this receipt permanently?")) return; try { await supabase.from('transactions').delete().eq('id', txId); setTransactions(transactions.filter(t => t.id !== txId)); setStats(prev => ({ ...prev, txCount: Math.max(0, prev.txCount - 1) })) } catch(err) { alert("Failed to delete.") } }
-  const printReceipt = (tx: Transaction) => { const printWindow = window.open('', '_blank'); if (!printWindow) return; printWindow.document.write(`<html><head><title>Receipt ${tx.receipt_number}</title><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet"><style>body { font-family: 'Plus Jakarta Sans', sans-serif; padding: 40px; color: #1e293b; background: #f8fafc; margin: 0; display: flex; justify-content: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .receipt-container { width: 100%; max-width: 600px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 32px; padding: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1); position: relative; overflow: hidden; } .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 30px; margin-bottom: 30px; } .logo { width: 90px; height: 90px; object-fit: contain; margin-bottom: 16px; } .title { font-size: 26px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.5px; } .subtitle { font-size: 15px; color: #64748b; font-weight: 600; margin-top: 6px; } .details { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; } .detail-box { background: #f8fafc; padding: 16px; border-radius: 16px; } .detail-label { font-size: 11px; text-transform: uppercase; font-weight: 800; color: #94a3b8; letter-spacing: 1px; margin-bottom: 6px; } .detail-value { font-size: 16px; font-weight: 700; color: #334155; } .amount-container { text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 32px; border-radius: 24px; margin-bottom: 30px; } .amount-label { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; font-weight: 700; margin-bottom: 12px; } .amount-value { font-size: 48px; font-weight: 800; margin: 0; color: #fff; letter-spacing: -1px; } .footer { text-align: center; font-size: 14px; color: #94a3b8; font-weight: 600; border-top: 1px solid #e2e8f0; padding-top: 24px; } @media print { body { background: white; padding: 0; } .receipt-container { box-shadow: none; border: none; padding: 20px; max-width: 100%; } }</style></head><body><div class="receipt-container"><div class="header"><img src="${window.location.origin}/loooBlack.png" class="logo" alt="Logo"/><h1 class="title">TRINITY PRAYER HOUSE</h1><p class="subtitle">Madukkarai, Coimbatore</p></div><div class="details"><div class="detail-box"><div class="detail-label">Receipt Number</div><div class="detail-value">${tx.receipt_number}</div></div><div class="detail-box"><div class="detail-label">Payment Date</div><div class="detail-value">${new Date(tx.payment_date).toLocaleDateString('en-IN')}</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Received From</div><div class="detail-value">${family?.head_name} (${family?.membership_id})</div></div><div class="detail-box" style="grid-column: span 2;"><div class="detail-label">Purpose of Contribution</div><div class="detail-value">${tx.purpose}</div></div></div><div class="amount-container"><div class="amount-label">Amount Received</div><div class="amount-value">₹${tx.amount.toLocaleString('en-IN')}</div></div><div class="footer">Thank you for your generous contribution.<br>May God bless you abundantly!</div></div><script>setTimeout(() => { window.print(); setTimeout(() => window.close(), 500); }, 500);</script></body></html>`); printWindow.document.close() }
 
-  const generateReceiptPDF = (tx: Transaction): jsPDF => {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
-    const w = doc.internal.pageSize.getWidth()
-    const h = doc.internal.pageSize.getHeight()
-    // Header background
-    doc.setFillColor(15, 23, 42); doc.rect(0, 0, w, 58, 'F')
-    // Logo at top
-    if (logoBase64) { try { doc.addImage(logoBase64, 'PNG', w / 2 - 8, 4, 16, 16) } catch(e) {} }
-    doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold')
-    doc.text('TRINITY PRAYER HOUSE', w / 2, 28, { align: 'center' })
-    doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-    doc.text('Madukkarai, Coimbatore', w / 2, 35, { align: 'center' })
-    doc.setFontSize(8); doc.setTextColor(148, 163, 184)
-    doc.text('Official Contribution Receipt', w / 2, 42, { align: 'center' })
-    // Watermark — logo in center with low opacity
-    if (logoBase64) {
-      try {
-        doc.saveGraphicsState()
-        // @ts-ignore - GState is available on jsPDF API
-        const gs = new (jsPDF.API as any).GState({ opacity: 0.06 })
-        doc.setGState(gs)
-        doc.addImage(logoBase64, 'PNG', w / 2 - 28, h / 2 - 20, 56, 56)
-        doc.restoreGraphicsState()
-      } catch(e) {}
-    }
-    // Dashed line
-    doc.setDrawColor(203, 213, 225); doc.setLineDashPattern([2, 2], 0); doc.line(15, 62, w - 15, 62)
-    // Receipt details
-    doc.setLineDashPattern([], 0); doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
-    doc.text('RECEIPT NUMBER', 15, 72); doc.text('PAYMENT DATE', w / 2 + 5, 72)
-    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
-    doc.text(tx.receipt_number, 15, 79); doc.text(new Date(tx.payment_date).toLocaleDateString('en-IN'), w / 2 + 5, 79)
-    doc.setTextColor(100, 116, 139); doc.setFontSize(8)
-    doc.text('RECEIVED FROM', 15, 90)
-    doc.setTextColor(30, 41, 59); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
-    doc.text(`${family?.head_name || ''} (${family?.membership_id || ''})`, 15, 97)
-    let nextY = 108
-    if (tx.remarks) {
-      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.text('REMARKS', 15, nextY)
-      doc.setTextColor(30, 41, 59); doc.setFontSize(10); doc.setFont('helvetica', 'normal')
-      doc.text(tx.remarks, 15, nextY + 7)
-      nextY += 20
-    }
-    // Amount box
-    doc.setFillColor(15, 23, 42); doc.roundedRect(15, nextY, w - 30, 32, 4, 4, 'F')
-    doc.setTextColor(148, 163, 184); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
-    doc.text('AMOUNT RECEIVED', w / 2, nextY + 10, { align: 'center' })
-    doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.setFont('helvetica', 'bold')
-    doc.text(`Rs. ${tx.amount.toLocaleString('en-IN')}`, w / 2, nextY + 24, { align: 'center' })
-    // Footer
-    doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal')
-    doc.text('Thank you for your generous contribution.', w / 2, nextY + 46, { align: 'center' })
-    doc.text('May God bless you abundantly!', w / 2, nextY + 52, { align: 'center' })
-    return doc
-  }
-
-  const downloadPDF = (tx: Transaction) => {
-    const doc = generateReceiptPDF(tx)
-    doc.save(`Receipt_${tx.receipt_number}.pdf`)
-  }
-
-  const sendWhatsApp = async (tx: Transaction) => {
-    if (!family?.mobile) return alert('No mobile number registered.')
-    let phone = family.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`
-    const doc = generateReceiptPDF(tx)
-    const pdfBlob = doc.output('blob')
-    let pdfUrl = ''
+  const handleDeleteFamily = async () => {
+    if (!family) return;
+    if (!confirm(`Delete the family "${family.head_name}" and ALL their members and receipts permanently? This cannot be undone.`)) return;
     try {
-      const filePath = `${tx.receipt_number}.pdf`
-      await supabase.storage.from('receipts').upload(filePath, pdfBlob, { contentType: 'application/pdf', upsert: true })
-      const { data } = supabase.storage.from('receipts').getPublicUrl(filePath)
-      pdfUrl = data?.publicUrl || ''
-    } catch (e) { console.error('Upload failed:', e) }
-    const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}${pdfUrl ? `\n\n📄 *Download Receipt:*\n${pdfUrl}` : ''}\n\nMay God bless you abundantly!`
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+      await supabase.from('transactions').delete().eq('family_id', family.id);
+      await supabase.from('members').delete().eq('family_id', family.id);
+      await supabase.from('families').delete().eq('id', family.id);
+      setFamily(null); setMembers([]); setTransactions([]);
+      setStats(prev => ({ ...prev, families: Math.max(0, prev.families - 1) }));
+    } catch(err) { alert("Failed to delete family.") }
   }
 
-  // ----------------------------------------------------
-  // --- LOGIN SCREEN (SAAS REDESIGN)
-  // ----------------------------------------------------
-  if (!authRole) {
+  const handleDeleteMember = async (memberId: string, memberName: string) => {
+    if (!confirm(`Delete "${memberName}" from this family permanently?`)) return;
+    try {
+      await supabase.from('members').delete().eq('id', memberId);
+      setMembers(members.filter(m => m.id !== memberId));
+      setStats(prev => ({ ...prev, members: Math.max(0, prev.members - 1) }));
+    } catch(err) { alert("Failed to delete member.") }
+  }
+
+  const handleExportDirectory = async () => {
+    setIsWorking(true);
+    try {
+      const { data: fams } = await supabase.from('families').select('id, membership_id, head_name, mobile, address, place, email, join_date');
+      const { data: mems } = await supabase.from('members').select('id, family_id, name, relationship, gender, birth_date, baptism_date, marriage_date');
+      if (!fams || !mems) return;
+      const rows: string[] = ['Membership ID,Family Head,Mobile,Address,Place,Dependent Name,Relationship,Gender,DOB,Baptism Date,Marriage Date'];
+      fams.forEach(f => {
+        rows.push(`"${f.membership_id}","${f.head_name}","${f.mobile || ''}","${f.address || ''}","${f.place || ''}","","Head","","","",""`);
+        const deps = mems.filter(m => m.family_id === f.id);
+        deps.forEach(d => {
+          rows.push(`"${f.membership_id}","${f.head_name}","","","","${d.name}","${d.relationship}","${d.gender}","${d.birth_date || ''}","${d.baptism_date || ''}","${d.marriage_date || ''}"`);
+        });
+      });
+      const csvContent = rows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `TPH_Directory_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch(err) { alert("Failed to export directory."); } finally { setIsWorking(false); }
+  }
+
+  const handleMonthlyReport = async () => {
+    setIsWorking(true);
+    try {
+      const currentMonthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+      const { data: txs } = await supabase.from('transactions').select('*').gte('payment_date', `${currentMonthStr}-01T00:00:00Z`).lte('payment_date', `${currentMonthStr}-31T23:59:59Z`).order('payment_date', { ascending: true });
+      if (!txs || txs.length === 0) { alert("No transactions found for this month."); return; }
+      generateMonthlyReportPDF(txs, currentMonthStr);
+    } catch(err) { alert("Failed to generate report."); } finally { setIsWorking(false); }
+  }
+
+  // Show loading while checking auth
+  if (authLoading || !authRole) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 selection:bg-blue-500/30 overflow-hidden relative font-sans">
-        {/* Dynamic Abstract Background */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <motion.div animate={{ rotate: 360 }} transition={{ duration: 100, repeat: Infinity, ease: "linear" }} className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] bg-blue-600/20 rounded-full blur-[120px] mix-blend-screen"></motion.div>
-          <motion.div animate={{ rotate: -360 }} transition={{ duration: 120, repeat: Infinity, ease: "linear" }} className="absolute -bottom-[20%] -right-[10%] w-[60vw] h-[60vw] bg-purple-600/20 rounded-full blur-[100px] mix-blend-screen"></motion.div>
-        </div>
-
-        <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="bg-slate-900/60 backdrop-blur-3xl rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 w-full max-w-md shadow-2xl border border-white/10 relative z-10 mx-4">
-          <div className="flex flex-col items-center justify-center mb-6 sm:mb-8">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-slate-950 rounded-2xl sm:rounded-[2rem] flex items-center justify-center shadow-2xl shadow-black mb-4 sm:mb-6 border border-white/5 p-4 relative">
-              <div className="absolute inset-0 bg-yellow-500/10 blur-xl rounded-full"></div>
-              <img src="/looowhite.png" alt="Trinity Logo" className="w-full h-full object-contain relative z-10" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white text-center tracking-tight mb-2">Trinity Portal</h1>
-            <p className="text-slate-400 text-center text-xs sm:text-sm font-medium tracking-wide uppercase">Secure Administrative Access</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
-                <input type="password" placeholder="Enter Access Code" required className="w-full bg-slate-950/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-slate-600 text-center text-xl tracking-[0.2em]" value={passcode} onChange={e => setPasscode(e.target.value)} />
-              </div>
-              {authError && <p className="text-red-400 text-xs mt-3 font-semibold text-center animate-pulse">{authError}</p>}
-            </div>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="w-full bg-white text-slate-900 hover:bg-slate-100 font-bold py-4 rounded-2xl transition-all shadow-xl shadow-white/10 text-lg">
-              Authenticate
-            </motion.button>
-          </form>
-        </motion.div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
-    )
+    );
   }
-
-  // ----------------------------------------------------
-  // --- MAIN DASHBOARD (SAAS REDESIGN)
-  // ----------------------------------------------------
-  const themeBg = isDarkMode ? 'bg-[#0a0f1c] text-slate-100' : 'bg-[#f4f7fb] text-slate-800'
-  const cardBg = isDarkMode ? 'bg-slate-900/50 backdrop-blur-2xl border-white/5 shadow-2xl shadow-black/40' : 'bg-white/80 backdrop-blur-2xl border-white/60 shadow-xl shadow-slate-200/50'
-  const textPrimary = isDarkMode ? 'text-white' : 'text-slate-900'
-  const textSecondary = isDarkMode ? 'text-slate-400' : 'text-slate-500'
 
   return (
-    <div className={`min-h-screen ${themeBg} font-sans transition-colors duration-700 pb-24 relative overflow-hidden`}>
-      
-      {/* Dynamic Background Mesh */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className={`absolute top-0 right-0 w-[800px] h-[800px] rounded-full blur-[120px] transition-all duration-1000 ${isDarkMode ? 'bg-blue-900/10' : 'bg-blue-200/40'} -translate-y-1/2 translate-x-1/3`}></div>
-        <div className={`absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full blur-[100px] transition-all duration-1000 ${isDarkMode ? 'bg-purple-900/10' : 'bg-purple-200/40'} translate-y-1/3 -translate-x-1/4`}></div>
-      </div>
-
-      {/* Floating Island Header */}
-      <motion.header initial={{ y: -100 }} animate={{ y: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 20 }} className="sticky top-2 sm:top-6 z-40 max-w-7xl mx-auto px-2 sm:px-6 mb-6 sm:mb-12">
-        <div className={`rounded-2xl sm:rounded-[2rem] p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 border transition-all duration-500 ${isDarkMode ? 'bg-slate-900/80 border-white/10 shadow-2xl shadow-black/50' : 'bg-white/90 border-white shadow-2xl shadow-slate-300/50'} backdrop-blur-2xl`}>
-          
-          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-4 cursor-pointer" onClick={() => setFamily(null)}>
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg p-2 border ${isDarkMode ? 'bg-slate-900 shadow-slate-900/30 border-white/10' : 'bg-white shadow-slate-200/50 border-slate-100'}`}>
-                <img src={isDarkMode ? "/looowhite.png" : "/loooBlack.png"} alt="Trinity Logo" className="w-full h-full object-contain" />
-              </div>
-              <div>
-                <h1 className={`text-xl font-extrabold tracking-tight leading-tight ${textPrimary}`}>Trinity Portal</h1>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${isDarkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-700'}`}>
-                    {authRole}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-            
-            <div className="flex sm:hidden items-center gap-1">
-              <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 rounded-full hover:bg-slate-500/10 transition-colors">
-                {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500"/> : <Moon className="w-5 h-5 text-slate-500"/>}
-              </button>
-              <button onClick={() => setAuthRole(null)} className="p-2.5 rounded-full hover:bg-red-500/10 text-red-500 transition-colors">
-                <LogOut className="w-5 h-5"/>
-              </button>
-            </div>
+    <DashboardShell>
+      {/* Floating Search Bar */}
+      <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className={`relative z-50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 border ${isDarkMode ? 'bg-slate-900/60 border-white/5' : 'bg-white/80 border-white'} backdrop-blur-xl shadow-lg`}>
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setFamily(null)}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm p-1.5 border ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-100'}`}>
+            <img src={isDarkMode ? "/looowhite.png" : "/loooBlack.png"} alt="Logo" className="w-full h-full object-contain" />
           </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-[400px]">
-              <input type="text" placeholder="Search by Name or Membership ID..." className={`w-full pl-12 pr-6 py-3.5 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 ${isDarkMode ? 'bg-slate-950/50 border border-white/10 text-white placeholder:text-slate-500 focus:bg-slate-950' : 'bg-slate-100/50 border border-transparent text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-slate-200 focus:shadow-lg'}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }} />
-              <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`} />
-              
-              <AnimatePresence>
-                {showSuggestions && suggestions.length > 0 && (
-                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 5, scale: 0.95 }} transition={{ duration: 0.2 }} className={`absolute top-[calc(100%+8px)] left-0 right-0 rounded-2xl shadow-2xl overflow-hidden z-50 border backdrop-blur-xl ${isDarkMode ? 'bg-slate-900/90 border-slate-700 shadow-black/50' : 'bg-white/90 border-slate-100 shadow-slate-300/50'}`}>
-                    {suggestions.map(s => (
-                      <div key={s.id} onClick={() => selectFamily(s)} className={`px-5 py-4 cursor-pointer flex items-center gap-4 transition-colors ${isDarkMode ? 'hover:bg-slate-800/80 border-b border-slate-800' : 'hover:bg-slate-50 border-b border-slate-50'} last:border-0`}>
-                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(s.head_name)}&background=random&color=fff&rounded=true`} className="w-10 h-10 shadow-sm" alt="avatar" />
-                        <div className="flex-1"><p className={`font-bold text-sm ${textPrimary}`}>{s.head_name}</p><p className={`text-xs font-medium ${textSecondary}`}>{s.membership_id}</p></div>
-                        <ChevronRight className={`w-4 h-4 ${textSecondary}`} />
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            
-            <div className="hidden sm:flex items-center gap-1 bg-slate-500/5 p-1 rounded-2xl">
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsDarkMode(!isDarkMode)} className="p-3 rounded-xl hover:bg-slate-500/10 transition-colors">
-                {isDarkMode ? <Sun className="w-5 h-5 text-yellow-500"/> : <Moon className="w-5 h-5 text-slate-500"/>}
-              </motion.button>
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setAuthRole(null)} className="p-3 rounded-xl hover:bg-red-500/10 transition-colors text-red-500" title="Log Out">
-                <LogOut className="w-5 h-5" />
-              </motion.button>
-            </div>
-          </div>
+          <h1 className={`text-lg font-extrabold tracking-tight ${textPrimary}`}>Dashboard</h1>
         </div>
-      </motion.header>
+        <SearchEngine onSelectFamily={selectFamily} />
+      </motion.div>
+
+
 
       {/* 🎂 Birthday Notification Banner */}
       <AnimatePresence>
@@ -478,7 +360,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -40, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg"
+            className="fixed top-4 right-4 z-50 w-[90%] max-w-sm sm:max-w-md"
           >
             <div className="bg-gradient-to-r from-amber-500 via-pink-500 to-purple-600 rounded-2xl sm:rounded-3xl p-[2px] shadow-2xl shadow-pink-500/30">
               <div className={`${isDarkMode ? 'bg-slate-900' : 'bg-white'} rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden`}>
@@ -513,9 +395,20 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+
+
         
         {/* --- GLOBAL OVERVIEW --- */}
+        {loading && !family && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 animate-pulse">
+            <div className={`h-20 w-1/3 rounded-2xl ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+            <div className={`h-64 sm:h-80 w-full rounded-[2.5rem] ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {[1, 2, 3].map(i => <div key={i} className={`h-28 rounded-3xl ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>)}
+            </div>
+          </motion.div>
+        )}
+
         {!family && !loading && (
           <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-6 sm:space-y-8">
             <motion.div variants={fadeUp} className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6 mb-2 sm:mb-4">
@@ -533,8 +426,14 @@ export default function Home() {
 
                 {authRole === 'admin' && (
                   <>
-                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportBackup} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
-                      <Download className="w-4 h-4" /> Backup
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleExportDirectory} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`} title="Export to Excel">
+                      <Download className="w-4 h-4 text-emerald-500" /> Export CSV
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleMonthlyReport} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`} title="Generate Monthly Financial Report">
+                      <FileText className="w-4 h-4 text-blue-500" /> Month Report
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={exportBackup} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`} title="Download Full JSON Backup">
+                      <Download className="w-4 h-4 text-slate-500" /> Backup
                     </motion.button>
                     <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setShowBroadcastModal(true)} className={`${isDarkMode ? 'bg-slate-800 text-orange-400 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-50'} shadow-sm font-semibold py-3 px-5 rounded-2xl transition-all flex items-center gap-2 text-sm border border-transparent dark:border-white/5`}>
                       <Megaphone className="w-4 h-4 text-orange-500" /> Broadcast
@@ -544,6 +443,30 @@ export default function Home() {
                     </motion.button>
                   </>
                 )}
+              </div>
+            </motion.div>
+
+            {/* Premium Welcome Banner */}
+            <motion.div variants={fadeUp} className={`relative overflow-hidden rounded-[2.5rem] p-8 sm:p-12 shadow-2xl border transition-all duration-500 ${isDarkMode ? 'bg-gradient-to-br from-slate-900 via-slate-800/80 to-slate-900 border-white/10 shadow-black/50' : 'bg-gradient-to-br from-white via-slate-50 to-blue-50/50 border-slate-200/60 shadow-slate-200/50'}`}>
+              {/* Abstract Glassmorphic Orbs */}
+              <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none mix-blend-overlay ${isDarkMode ? 'bg-blue-500/20' : 'bg-blue-400/20'}`}></div>
+              <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none mix-blend-overlay ${isDarkMode ? 'bg-purple-500/20' : 'bg-purple-400/20'}`}></div>
+              
+              <div className="relative z-10 max-w-2xl">
+                <h2 className={`text-3xl sm:text-5xl font-black tracking-tight mb-4 text-transparent bg-clip-text ${isDarkMode ? 'bg-gradient-to-r from-white to-slate-400' : 'bg-gradient-to-r from-slate-900 to-slate-600'}`}>
+                  Welcome to Trinity Portal
+                </h2>
+                <p className={`text-lg sm:text-xl font-medium leading-relaxed mb-8 max-w-xl ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                  {authRole === 'admin' 
+                    ? "Manage your congregation, track financial contributions, and engage with your community effortlessly."
+                    : "Access the directory and manage administrative tasks for Trinity Prayer House."}
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button onClick={() => document.querySelector('input')?.focus()} className={`px-8 py-4 rounded-2xl font-bold transition-all shadow-xl flex items-center justify-center gap-2 ${isDarkMode ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-white/10' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'}`}>
+                    <Search className="w-5 h-5" /> Start Searching
+                  </button>
+                </div>
               </div>
             </motion.div>
 
@@ -565,8 +488,22 @@ export default function Home() {
               {/* Analytics Chart */}
               {authRole === 'admin' && (
                 <motion.div variants={scaleIn} className={`${cardBg} rounded-3xl p-6 sm:p-8 border transition-colors duration-500 lg:col-span-3`}>
-                  <h3 className={`text-xl font-bold mb-8 flex items-center gap-3 ${textPrimary}`}><PieChartIcon className="w-6 h-6 text-blue-500"/> Financial Analytics</h3>
-                  {chartData.length > 0 ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                    <h3 className={`text-xl font-bold flex items-center gap-3 ${textPrimary}`}><PieChartIcon className="w-6 h-6 text-blue-500"/> Financial Analytics</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`text-xs p-2 rounded-xl border outline-none font-medium ${isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'}`} />
+                      <span className="text-slate-400 text-xs font-bold">TO</span>
+                      <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`text-xs p-2 rounded-xl border outline-none font-medium ${isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'}`} />
+                      {(startDate || endDate) && (
+                        <button onClick={() => { setStartDate(''); setEndDate(''); }} className="text-xs font-bold text-red-500 hover:bg-red-500/10 px-3 py-2 rounded-xl transition-all">Clear</button>
+                      )}
+                    </div>
+                  </div>
+                  {chartLoading ? (
+                    <div className={`h-[280px] flex items-center justify-center`}>
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : chartData.length > 0 ? (
                     <div className="h-[280px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -578,7 +515,7 @@ export default function Home() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                  ) : <div className={`h-[280px] flex items-center justify-center text-sm font-medium ${textSecondary}`}>Generate receipts to view analytics.</div>}
+                  ) : <div className={`h-[280px] flex items-center justify-center text-sm font-medium ${textSecondary}`}>No data for this period.</div>}
                 </motion.div>
               )}
 
@@ -598,12 +535,13 @@ export default function Home() {
                         <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-base leading-tight truncate">{m.name} {isToday && <span className="ml-1 text-[10px] bg-amber-400 text-amber-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🎂 Today</span>}</p>
-                          <p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date} • {m.families?.head_name}&apos;s Family</p>
+                          <p className="text-xs text-blue-100 mt-1 font-medium">{m.birth_date}{calculateAge(m.birth_date)} • {m.families?.head_name}&apos;s Family</p>
                         </div>
                         {isToday && m.families?.mobile && (
                           <button onClick={() => {
-                            let phone = m.families.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
-                            const msg = `*Trinity Prayer House*\n\nDear ${m.name},\nWe wish you a very *Happy and Blessed Birthday!* 🎂\nMay God bless you abundantly today and always.\n\n_God Bless You!_`;
+                            let phone = m.families?.mobile.replace(/\D/g, '') || ''; if (phone.length === 10) phone = `91${phone}`;
+                            let title = m.gender === 'Female' ? 'Sis. ' : m.gender === 'Male' ? 'Bro. ' : '';
+                            const msg = `*Trinity Prayer House*\n\nDear ${title}${m.name},\nWe wish you a very *Happy and Blessed Birthday!* 🎂\nMay God bless you abundantly today and always.\n\nPs 65:11\nPsalms 65\n11. Thou crownest the year with thy goodness; and thy paths drop fatness.\nவருஷத்தை உம்முடைய நன்மையால் முடிசூட்டுகிறீர்; உமது பாதைகள் நெய்யாய்ப் பொழிகிறது.\n\n_God Bless You!_\n\nPr Vasanth Sathyanathan`;
                             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
                           }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all">
                             <MessageCircle className="w-4 h-4" />
@@ -639,12 +577,12 @@ export default function Home() {
                         <div className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0 bg-white/20 flex items-center justify-center text-lg shadow-inner">💒</div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-base leading-tight truncate">{a.names} {isToday && <span className="ml-1 text-[10px] bg-rose-400 text-rose-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">💍 Today</span>}</p>
-                          <p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date} • {a.family_name}&apos;s Family</p>
+                          <p className="text-xs text-rose-100 mt-1 font-medium">{a.marriage_date}{calculateAge(a.marriage_date)} • {a.family_name}&apos;s Family</p>
                         </div>
                         {isToday && (a as any).mobile && (
                           <button onClick={() => {
                             let phone = (a as any).mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
-                            const msg = `*Trinity Prayer House*\n\nDear ${a.names},\nWe wish you a very *Happy and Blessed Wedding Anniversary!* 💒\nMay God bless your family and lead you in His grace.\n\n_God Bless You!_`;
+                            const msg = `*Trinity Prayer House*\n\nDear Bro. & Sis. ${a.names},\nWe wish you a very *Happy and Blessed Wedding Anniversary!* 💒\nMay God bless your family and lead you in His grace.\n\n3 john 1:2\n3 John 1\n2. Beloved, I wish above all things that thou mayest prosper and be in health, even as thy soul prospereth.\nபிரியமானவனே, உன் ஆத்துமா வாழ்கிறதுபோல நீ எல்லாவற்றிலும் வாழ்ந்து சுகமாயிருக்கும்படி வேண்டுகிறேன்.\n\n_God Bless You!_\n\nPr Vasanth Sathyanathan`;
                             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
                           }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all">
                             <MessageCircle className="w-4 h-4" />
@@ -677,12 +615,13 @@ export default function Home() {
                         <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff`} className="w-12 h-12 rounded-full border-2 border-white/30 shrink-0" alt="avatar" />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-base leading-tight truncate">{m.name} {isToday && <span className="ml-1 text-[10px] bg-cyan-400 text-cyan-900 font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">🌊 Today</span>}</p>
-                          <p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date} • {m.families?.head_name}&apos;s Family</p>
+                          <p className="text-xs text-teal-100 mt-1 font-medium">{m.baptism_date}{calculateAge(m.baptism_date)} • {m.families?.head_name}&apos;s Family</p>
                         </div>
                         {isToday && m.families?.mobile && (
                           <button onClick={() => {
-                            let phone = m.families.mobile.replace(/\D/g, ''); if (phone.length === 10) phone = `91${phone}`;
-                            const msg = `*Trinity Prayer House*\n\nDear ${m.name},\nWe wish you a very *Blessed Baptism Anniversary!* 🌊\nMay you continue to grow in the grace and knowledge of our Lord.\n\n_God Bless You!_`;
+                            let phone = m.families?.mobile.replace(/\D/g, '') || ''; if (phone.length === 10) phone = `91${phone}`;
+                            let title = m.gender === 'Female' ? 'Sis. ' : m.gender === 'Male' ? 'Bro. ' : '';
+                            const msg = `*Trinity Prayer House*\n\nDear ${title}${m.name},\nWe wish you a very *Blessed Baptism Anniversary!*\nMay you continue to grow in the grace and knowledge of our Lord.\n\n_God Bless You!_\n\nPr Vasanth Sathyanathan`;
                             window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
                           }} className="p-2.5 bg-white/20 hover:bg-emerald-500 text-white rounded-xl transition-all">
                             <MessageCircle className="w-4 h-4" />
@@ -703,13 +642,29 @@ export default function Home() {
         )}
 
         {/* --- SELECTED FAMILY VIEW --- */}
+        {loading && family && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid lg:grid-cols-3 gap-8 animate-pulse">
+            <div className="lg:col-span-1 space-y-6">
+               <div className={`h-[350px] rounded-[2.5rem] ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+               <div className={`h-[300px] rounded-[2.5rem] ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+            </div>
+            <div className="lg:col-span-2 space-y-8">
+               <div className={`h-[250px] rounded-[2.5rem] ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+               <div className={`h-[400px] rounded-[2.5rem] ${isDarkMode ? 'bg-slate-800/50' : 'bg-slate-200/50'}`}></div>
+            </div>
+          </motion.div>
+        )}
+
         {!loading && family && (
           <motion.div variants={staggerContainer} initial="hidden" animate="show" className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1 space-y-6">
               {/* Profile Card */}
               <motion.div variants={fadeUp} className={`${cardBg} rounded-[2.5rem] p-8 border transition-colors duration-500 relative`}>
                 {authRole === 'admin' && (
-                  <motion.button whileHover={{ scale: 1.1 }} onClick={() => { setEditFam(family); setShowEditFamModal(true) }} className={`absolute top-6 right-6 p-3 rounded-full transition-colors ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'}`}><Edit3 className="w-4 h-4" /></motion.button>
+                  <div className="absolute top-6 right-6 flex items-center gap-2">
+                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => { setEditFam(family); setShowEditFamModal(true) }} className={`p-3 rounded-full transition-colors ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'}`}><Edit3 className="w-4 h-4" /></motion.button>
+                    <motion.button whileHover={{ scale: 1.1 }} onClick={handleDeleteFamily} className={`p-3 rounded-full transition-colors ${isDarkMode ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}><Trash2 className="w-4 h-4" /></motion.button>
+                  </div>
                 )}
                 <div className="flex flex-col items-center text-center mb-8">
                   <div className="relative mb-4">
@@ -748,7 +703,10 @@ export default function Home() {
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Remarks (Optional)</label>
                       <textarea className="w-full bg-slate-800/50 rounded-2xl px-5 py-3.5 text-white border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all font-medium text-sm" rows={2} placeholder="Add any notes..." value={remarks} onChange={e => setRemarks(e.target.value)}></textarea>
                     </div>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 font-bold py-4 rounded-2xl mt-4 shadow-lg shadow-blue-500/30">{isSaving ? 'Processing...' : 'Save & Generate'}</motion.button>
+                    <div className="flex gap-3 mt-4">
+                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isSaving} className="flex-1 bg-blue-600 hover:bg-blue-500 font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30">{editingTxId ? (isSaving ? 'Updating...' : 'Confirm Edit') : (isSaving ? 'Processing...' : 'Save & Generate')}</motion.button>
+                      {editingTxId && <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="button" onClick={() => { setEditingTxId(null); setAmount(''); setRemarks(''); setPurpose('Tithes'); }} className="px-6 bg-slate-700 hover:bg-slate-600 font-bold py-4 rounded-2xl">Cancel</motion.button>}
+                    </div>
                   </form>
                 </motion.div>
               )}
@@ -772,10 +730,11 @@ export default function Home() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                           <span className="text-xl sm:text-2xl font-extrabold text-emerald-500 mr-2 sm:mr-3">₹{tx.amount.toLocaleString()}</span>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => { setAmount(tx.amount.toString()); setPurpose(tx.purpose); setRemarks(tx.remarks || ''); setEditingTxId(tx.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Edit Receipt"><Edit3 className="w-5 h-5" /></motion.button>
                           <motion.button whileHover={{ scale: 1.1 }} onClick={() => handleDeleteReceipt(tx.id)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Delete Receipt"><Trash2 className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp with PDF"><MessageCircle className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => downloadPDF(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50'}`} title="Download PDF"><Download className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => printReceipt(tx)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp with PDF"><MessageCircle className="w-5 h-5" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => downloadPDF(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50'}`} title="Download PDF"><Download className="w-5 h-5" /></motion.button>
+                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => printReceipt(tx, family)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></motion.button>
                         </div>
                       </motion.div>
                     ))}
@@ -810,10 +769,13 @@ export default function Home() {
                               <span className={`text-base font-bold ${textPrimary}`}>{m.name}</span>
                             </div>
                           </td>
-                          <td className={`py-4 px-3 ${textSecondary}`}>{m.relationship || '-'}</td><td className={`py-4 px-3 ${textSecondary}`}>{m.birth_date || '-'}</td>
+                          <td className={`py-4 px-3 ${textSecondary}`}>{m.relationship || '-'}</td><td className={`py-4 px-3 ${textSecondary}`}>{m.birth_date ? `${m.birth_date}${calculateAge(m.birth_date)}` : '-'}</td>
                           {authRole === 'admin' && (
                             <td className="py-4 px-3 text-right">
-                              <button onClick={() => { setEditDependent(m); setShowEditDependentModal(true) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                              <div className="flex justify-end items-center gap-1">
+                                <button onClick={() => { setEditDependent(m); setShowEditDependentModal(true) }} className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit3 className="w-4 h-4" /></button>
+                                <button onClick={() => handleDeleteMember(m.id, m.name)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                              </div>
                             </td>
                           )}
                         </motion.tr>
@@ -825,7 +787,8 @@ export default function Home() {
             </div>
           </motion.div>
         )}
-      </main>
+
+
 
         {/* --- MODALS --- */}
         <AnimatePresence>
@@ -839,7 +802,7 @@ export default function Home() {
                     <h3 className="text-xs font-bold text-blue-500 uppercase tracking-widest border-b border-slate-500/20 pb-3">Primary Contact Details</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div><label className="text-sm font-bold block mb-2 text-slate-500">Head of Family Name *</label><input type="text" required className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.head_name} onChange={e => setNewFam({...newFam, head_name: e.target.value})} /></div>
-                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Mobile Number</label><input type="text" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.mobile} onChange={e => setNewFam({...newFam, mobile: e.target.value})} /></div>
+                      <div><label className="text-sm font-bold block mb-2 text-slate-500">Mobile Number</label><input type="tel" pattern="[0-9]{10}" maxLength={10} placeholder="10-digit number" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.mobile} onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 10); setNewFam({...newFam, mobile: v}); }} /></div>
                       <div><label className="text-sm font-bold block mb-2 text-slate-500">Email Address</label><input type="email" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.email} onChange={e => setNewFam({...newFam, email: e.target.value})} /></div>
                       <div><label className="text-sm font-bold block mb-2 text-slate-500">City / Place</label><input type="text" className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.place} onChange={e => setNewFam({...newFam, place: e.target.value})} /></div>
                       <div className="sm:col-span-2"><label className="text-sm font-bold block mb-2 text-slate-500">Full Address</label><textarea className={`w-full border rounded-2xl px-5 py-3 focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`} value={newFam.address} onChange={e => setNewFam({...newFam, address: e.target.value})} rows={2}></textarea></div>
@@ -968,7 +931,7 @@ export default function Home() {
             </div>
           )}
         </AnimatePresence>
-      {/* --- MODALS moved outside main to fix z-index overlay issues --- */}
-    </div>
+        <AIChatBot />
+    </DashboardShell>
   )
 }
