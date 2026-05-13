@@ -3,6 +3,7 @@
 import jsPDF from 'jspdf'
 import { supabase } from '@/utils/supabase'
 import type { Transaction, Family } from '@/utils/types'
+import { notifySystemAction } from '@/utils/helpers'
 
 /** Generate a receipt PDF for a transaction */
 export const generateReceiptPDF = (tx: Transaction, family: Family | null, logoBase64: string): jsPDF => {
@@ -61,10 +62,10 @@ export const generateReceiptPDF = (tx: Transaction, family: Family | null, logoB
   return doc
 }
 
-/** Download a receipt as PDF */
 export const downloadPDF = (tx: Transaction, family: Family | null, logoBase64: string) => {
   const doc = generateReceiptPDF(tx, family, logoBase64)
   doc.save(`Receipt_${tx.receipt_number}.pdf`)
+  notifySystemAction('📥 Receipt Downloaded', `Receipt ${tx.receipt_number} for ₹${tx.amount.toLocaleString()} was downloaded.`)
 }
 
 /** Send a receipt via WhatsApp with PDF upload */
@@ -82,6 +83,7 @@ export const sendWhatsApp = async (tx: Transaction, family: Family | null, logoB
   } catch (e) { console.error('Upload failed:', e) }
   const msg = `*Trinity Prayer House*\n\nDear ${family.head_name},\nWe have safely received your contribution of *₹${tx.amount.toLocaleString('en-IN')}* towards ${tx.purpose}.\n\nReceipt No: ${tx.receipt_number}\nDate: ${new Date(tx.payment_date).toLocaleDateString('en-IN')}${tx.remarks ? `\nRemarks: ${tx.remarks}` : ''}${pdfUrl ? `\n\n📄 *Download Receipt:*\n${pdfUrl}` : ''}\n\nMay God bless you abundantly!`
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+  notifySystemAction('📤 WhatsApp Sent', `Receipt ${tx.receipt_number} for ₹${tx.amount.toLocaleString()} sent to ${family.head_name}.`)
 }
 
 /** Print receipt in a new window */

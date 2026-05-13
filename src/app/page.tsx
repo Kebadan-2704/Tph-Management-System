@@ -13,7 +13,7 @@ import SearchEngine from '@/components/SearchEngine'
 import dynamic from 'next/dynamic'
 const AIChatBot = dynamic(() => import('@/components/AIChatBot'), { ssr: false })
 import NotificationToggle from '@/components/NotificationToggle'
-import { parseDayFromDate, isTodayBirthday, isTodayAnniversary, isTodayBaptism, isMonthMatch, CHART_COLORS, staggerContainer, fadeUp, scaleIn } from '@/utils/helpers'
+import { parseDayFromDate, isTodayBirthday, isTodayAnniversary, isTodayBaptism, isMonthMatch, CHART_COLORS, staggerContainer, fadeUp, scaleIn, notifySystemAction } from '@/utils/helpers'
 import { generateReceiptPDF, downloadPDF, sendWhatsApp, printReceipt, generateMonthlyReportPDF } from '@/utils/pdf'
 import type { Family, Member, Transaction, AnniversaryGroup } from '@/utils/types'
 
@@ -188,6 +188,7 @@ export default function Home() {
         if (error) throw error
         setTransactions([newTx, ...transactions]); setStats(prev => ({ ...prev, txCount: prev.txCount + 1 }))
         setSuccessMsg('Receipt saved successfully!')
+        notifySystemAction('✅ Receipt Generated', `Admin generated receipt ${receiptNumber} for ₹${amount}.`)
       }
       setAmount(''); setPurpose('Tithes'); setRemarks('')
       setTimeout(() => setSuccessMsg(''), 3000)
@@ -202,6 +203,7 @@ export default function Home() {
       if (fError) throw fError
       await supabase.from('members').insert({ family_id: fData.id, name: newFam.head_name, relationship: 'Head', gender: newFam.gender, birth_date: newFam.birth_date, baptism_date: newFam.baptism_date, marriage_date: newFam.marriage_date })
       setStats(prev => ({ ...prev, families: prev.families + 1, members: prev.members + 1 })); setShowAddModal(false); setNewFam({ head_name: '', mobile: '', address: '', place: '', email: '', gender: '', birth_date: '', baptism_date: '', marriage_date: '' })
+      notifySystemAction('🏠 Family Added', `Admin added new family: ${newFam.head_name}.`)
       selectFamily(fData)
     } catch(err) { alert("Error adding family.") } finally { setIsWorking(false) }
   }
@@ -221,6 +223,7 @@ export default function Home() {
       const { data: mData, error } = await supabase.from('members').insert({ family_id: family?.id, name: newMember.name, relationship: newMember.relationship, gender: newMember.gender, birth_date: newMember.birth_date, baptism_date: newMember.baptism_date, marriage_date: newMember.marriage_date }).select().single()
       if (error) throw error
       setMembers([...members, mData]); setShowAddMemberModal(false); setNewMember({ name: '', relationship: '', birth_date: '', marriage_date: '', baptism_date: '', gender: '' })
+      notifySystemAction('👤 Member Added', `Admin added ${newMember.name} to ${family?.head_name}'s family.`)
     } catch(err) { alert("Error adding member.") } finally { setIsWorking(false) }
   }
 

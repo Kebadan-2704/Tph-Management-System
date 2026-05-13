@@ -78,3 +78,16 @@ export const slideInRight = {
   hidden: { opacity: 0, x: 30 },
   show: { opacity: 1, x: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
 };
+
+/** Trigger a system-wide push notification to all subscribed admins */
+export const notifySystemAction = async (title: string, body: string, url: string = '/') => {
+  try {
+    await fetch('/api/notifications/notify-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, url }),
+    });
+  } catch (err) {
+    console.error('Failed to send push notification', err);
+  }
+};
