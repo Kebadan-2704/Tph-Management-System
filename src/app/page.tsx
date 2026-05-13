@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/useTheme'
 import DashboardShell from '@/components/DashboardShell'
 import SearchEngine from '@/components/SearchEngine'
 import AIChatBot from '@/components/AIChatBot'
+import NotificationToggle from '@/components/NotificationToggle'
 import { parseDayFromDate, isTodayBirthday, isTodayAnniversary, isTodayBaptism, isMonthMatch, CHART_COLORS, staggerContainer, fadeUp, scaleIn } from '@/utils/helpers'
 import { generateReceiptPDF, downloadPDF, sendWhatsApp, printReceipt, generateMonthlyReportPDF } from '@/utils/pdf'
 import type { Family, Member, Transaction, AnniversaryGroup } from '@/utils/types'
@@ -482,6 +483,11 @@ export default function Home() {
                   <div><p className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest ${textSecondary} mb-1`}>{stat.label}</p><p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${textPrimary}`}>{stat.val}</p></div>
                 </div>
               ))}
+            </motion.div>
+
+            {/* Push Notification Toggle */}
+            <motion.div variants={fadeUp}>
+              <NotificationToggle />
             </motion.div>
 
             <div className="grid lg:grid-cols-5 gap-6">
