@@ -19,7 +19,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "TPH Management",
   description: "Trinity Prayer House Management System",
-  manifest: "/manifest.json?v=2",
+  manifest: "/manifest.json?v=3",
   icons: {
     icon: [
       { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
