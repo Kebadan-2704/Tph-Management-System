@@ -9,6 +9,7 @@ export function proxy(request: NextRequest) {
   if (
     request.nextUrl.pathname.startsWith('/_next') ||
     request.nextUrl.pathname.startsWith('/api/auth') ||
+    request.nextUrl.pathname.startsWith('/api/notifications') ||
     request.nextUrl.pathname === '/loooBlack.png' ||
     request.nextUrl.pathname === '/looowhite.png' ||
     request.nextUrl.pathname.includes('.')
