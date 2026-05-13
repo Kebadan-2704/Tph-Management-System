@@ -14,16 +14,45 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 )
 
+function getISTDate(): Date {
+  const utcDate = new Date();
+  // IST is UTC + 5:30
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  return new Date(utcDate.getTime() + istOffset);
+}
+
 function isTodayMatch(dateStr: string): boolean {
   if (!dateStr) return false
-  try {
-    const parts = dateStr.split(/[-./]/)
-    const d = new Date(parts.join('-'))
-    const now = new Date()
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth()
-  } catch {
-    return false
+  const today = getISTDate()
+  const currentDay = today.getUTCDate()
+  const currentMonth = today.getUTCMonth() + 1 // 1-12
+  
+  // Try to parse YYYY-MM-DD or DD-MM-YYYY or DD.MM.YYYY or DD/MM/YYYY
+  const parts = dateStr.split(/[-./ ]/)
+  if (parts.length >= 3) {
+    let day, month;
+    // If first part is 4 digits, it's YYYY-MM-DD
+    if (parts[0].length === 4) {
+      month = parseInt(parts[1], 10)
+      day = parseInt(parts[2], 10)
+    } else {
+      // Assuming DD-MM-YYYY or DD-MMM-YYYY
+      day = parseInt(parts[0], 10)
+      if (isNaN(parseInt(parts[1], 10))) {
+        // It's a month string like 'May' or 'Jan'
+        const mStr = parts[1].toLowerCase()
+        const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+        month = months.findIndex(m => mStr.includes(m)) + 1
+      } else {
+        month = parseInt(parts[1], 10)
+      }
+    }
+    
+    if (day === currentDay && month === currentMonth) {
+      return true
+    }
   }
+  return false
 }
 
 export async function GET(req: NextRequest) {
