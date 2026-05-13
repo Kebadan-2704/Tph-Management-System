@@ -10,7 +10,8 @@ import { useAuth } from '@/components/AuthProvider'
 import { useTheme } from '@/hooks/useTheme'
 import DashboardShell from '@/components/DashboardShell'
 import SearchEngine from '@/components/SearchEngine'
-import AIChatBot from '@/components/AIChatBot'
+import dynamic from 'next/dynamic'
+const AIChatBot = dynamic(() => import('@/components/AIChatBot'), { ssr: false })
 import NotificationToggle from '@/components/NotificationToggle'
 import { parseDayFromDate, isTodayBirthday, isTodayAnniversary, isTodayBaptism, isMonthMatch, CHART_COLORS, staggerContainer, fadeUp, scaleIn } from '@/utils/helpers'
 import { generateReceiptPDF, downloadPDF, sendWhatsApp, printReceipt, generateMonthlyReportPDF } from '@/utils/pdf'
@@ -725,7 +726,7 @@ export default function Home() {
                   <h3 className={`text-2xl font-extrabold mb-8 ${textPrimary}`}>Financial History</h3>
                   <div className="space-y-4">
                     {transactions.map((tx, i) => (
-                      <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} key={tx.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/80' : 'bg-slate-50 border-slate-100 hover:shadow-md hover:bg-white'}`}>
+                      <div key={tx.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/80' : 'bg-slate-50 border-slate-100 hover:shadow-md hover:bg-white'}`}>
                         <div className="mb-4 sm:mb-0">
                           <p className={`font-bold text-lg ${textPrimary}`}>{tx.purpose}</p>
                           <div className="flex items-center gap-2 mt-1">
@@ -736,13 +737,13 @@ export default function Home() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                           <span className="text-xl sm:text-2xl font-extrabold text-emerald-500 mr-2 sm:mr-3">₹{tx.amount.toLocaleString()}</span>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => { setAmount(tx.amount.toString()); setPurpose(tx.purpose); setRemarks(tx.remarks || ''); setEditingTxId(tx.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Edit Receipt"><Edit3 className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => handleDeleteReceipt(tx.id)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Delete Receipt"><Trash2 className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => sendWhatsApp(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp with PDF"><MessageCircle className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => downloadPDF(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50'}`} title="Download PDF"><Download className="w-5 h-5" /></motion.button>
-                          <motion.button whileHover={{ scale: 1.1 }} onClick={() => printReceipt(tx, family)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></motion.button>
+                          <button onClick={() => { setAmount(tx.amount.toString()); setPurpose(tx.purpose); setRemarks(tx.remarks || ''); setEditingTxId(tx.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Edit Receipt"><Edit3 className="w-5 h-5" /></button>
+                          <button onClick={() => handleDeleteReceipt(tx.id)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Delete Receipt"><Trash2 className="w-5 h-5" /></button>
+                          <button onClick={() => sendWhatsApp(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50'}`} title="Send WhatsApp with PDF"><MessageCircle className="w-5 h-5" /></button>
+                          <button onClick={() => downloadPDF(tx, family, logoBase64)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-purple-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-purple-500 hover:bg-purple-50'}`} title="Download PDF"><Download className="w-5 h-5" /></button>
+                          <button onClick={() => printReceipt(tx, family)} className={`p-3 rounded-xl border transition-colors ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-blue-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-blue-50'}`} title="Print Receipt"><Printer className="w-5 h-5" /></button>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                     {transactions.length === 0 && <div className={`text-center py-10 font-medium ${textSecondary} bg-slate-500/5 rounded-2xl border border-slate-500/10 border-dashed`}>No receipts generated yet.</div>}
                   </div>
@@ -768,10 +769,10 @@ export default function Home() {
                     </thead>
                     <tbody className="text-sm font-medium">
                       {members.map((m, i) => (
-                        <motion.tr initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} key={m.id} className={`group border-b ${isDarkMode ? 'border-slate-800 hover:bg-slate-800/50' : 'border-slate-100 hover:bg-slate-50'} transition-colors`}>
+                        <tr key={m.id} className={`group border-b ${isDarkMode ? 'border-slate-800 hover:bg-slate-800/50' : 'border-slate-100 hover:bg-slate-50'} transition-colors`}>
                           <td className="py-4 px-3">
                             <div className="flex items-center gap-4">
-                              <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff&rounded=true`} className="w-10 h-10 shadow-sm" alt="avatar"/>
+                              <img loading="lazy" src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name)}&background=random&color=fff&rounded=true`} className="w-10 h-10 shadow-sm" alt="avatar"/>
                               <span className={`text-base font-bold ${textPrimary}`}>{m.name}</span>
                             </div>
                           </td>
@@ -784,7 +785,7 @@ export default function Home() {
                               </div>
                             </td>
                           )}
-                        </motion.tr>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
